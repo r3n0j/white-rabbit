@@ -60,3 +60,12 @@ class SettingsTest(IsolatedCase):
     def test_log_error_never_raises(self):
         os.environ["WHITE_RABBIT_DIR"] = "/proc/forbidden/dir"
         config.log_error("ctx", ValueError("x"))
+
+    def test_a_wrong_value_is_logged_once_until_the_file_changes(self):
+        self.configure(gitlab={"hosts": "gitlab.com"})
+        for _ in range(5):
+            config.settings()
+        self.assertEqual(self.errors().count("gitlab.hosts"), 1)
+        self.configure(gitlab={"hosts": ["git.example.org"]})
+        self.assertEqual(config.settings()["gitlab"]["hosts"], ["git.example.org"])
+

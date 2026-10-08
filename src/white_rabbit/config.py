@@ -12,7 +12,8 @@ DEFAULTS = {
     "gitlab": {
         "enabled": True,
         "hosts": ["gitlab.com"],
-        "ignore_commands": ["glab mr list", "glab mr view", "glab mr diff", "glab api"],
+        "ignore_commands": ["glab mr list", "glab mr view", "glab mr diff", "glab api",
+                            "cat", "jq", "grep", "rg", "curl", "head", "tail", "less"],
         "glab": "glab",
     },
     "notes": {"enabled": False, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
@@ -87,8 +88,33 @@ def _environment(merged):
         merged["notes"]["vault"] = env["SESSION_REGISTRY_VAULT_NAME"]
 
 
+ENV_KEYS = ("WHITE_RABBIT_DIR", "WHITE_RABBIT_CONFIG", "XDG_CONFIG_HOME", "HOME", "SESSION_REGISTRY_DIR",
+            "SESSION_REGISTRY_GLAB", "SESSION_REGISTRY_VAULT", "SESSION_REGISTRY_VAULT_NAME")
+_CACHE = {}
+
+
+def _stamp():
+    """Contenu du fichier (minuscule) et environnement : une réécriture de même taille dans le
+    même tic d'horloge est vue, ce que (taille, mtime) manquerait."""
+    path = config_path()
+    try:
+        with open(path, "rb") as fh:
+            found = fh.read()
+    except OSError:
+        found = None
+    return (path, found, tuple(os.environ.get(k) for k in ENV_KEYS))
+
+
 def settings():
-    """Réglages effectifs, chemins développés ; jamais d'exception."""
+    """Réglages effectifs, chemins développés ; jamais d'exception. Recalculés seulement
+    quand le contenu du fichier ou l'environnement change : un problème n'est consigné qu'une fois."""
+    stamp = _stamp()
+    if _CACHE.get("stamp") != stamp:
+        _CACHE.update(stamp=stamp, value=_compute())
+    return copy.deepcopy(_CACHE["value"])
+
+
+def _compute():
     problems = []
     merged = _merge(_read_file(problems), problems)
     _environment(merged)

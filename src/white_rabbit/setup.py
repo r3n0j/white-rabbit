@@ -2,6 +2,7 @@
 avec le chemin absolu de l'exécutable (le PATH des hooks n'est pas garanti)."""
 import json
 import os
+import shlex
 import shutil
 import sys
 
@@ -12,14 +13,26 @@ EVENTS = (
 )
 
 
+def _command():
+    """Commande à écrire : l'exécutable `white-rabbit` du PATH, sinon le script lancé s'il est
+    exécutable, sinon `<python> -m white_rabbit` (lancement par `python3 -m white_rabbit`)."""
+    found = shutil.which("white-rabbit")
+    if found:
+        return shlex.quote(found)
+    script = os.path.realpath(sys.argv[0])
+    if os.access(script, os.X_OK) and not script.endswith(".py"):
+        return shlex.quote(script)
+    return "%s -m white_rabbit" % shlex.quote(sys.executable)
+
+
 def _ours(command, action):
-    return "white-rabbit" in (command or "") and (command or "").endswith(action)
+    return ("white-rabbit" in (command or "") or "white_rabbit" in (command or "")) and (command or "").endswith(action)
 
 
 def run(args, settings_path=None, exe=None):
     dry, force = "--dry-run" in args, "--force" in args
     path = settings_path or os.path.expanduser("~/.claude/settings.json")
-    exe = exe or shutil.which("white-rabbit") or os.path.realpath(sys.argv[0])
+    exe = shlex.quote(exe) if exe else _command()
     try:
         with open(path) as fh:
             data = json.load(fh)

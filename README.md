@@ -22,7 +22,9 @@ existing statusline without `--force`.
 ## How it works
 
 - A merge request URL printed by any Bash command becomes a merge request of the session,
-  except for read commands (`glab mr list|view|diff`, `glab api`).
+  unless every part of the command (split on `&&`, `||`, `;`, `|`) is a read: `glab mr
+  list|view|diff`, `glab api`, `cat`, `jq`, `grep`, `rg`, `curl`, `head`, `tail`, `less`
+  (`cd` is neutral). `git push … | tail -5` is still captured.
 - The to-do list is written by Claude itself with `white-rabbit todo "[next] …" "…"`: the
   SessionStart hook gives it the instructions (see `white-rabbit instructions`).
 - One JSON file per session in `~/.claude/white-rabbit/`, purged after 30 days.
@@ -34,7 +36,8 @@ Optional `~/.config/white-rabbit/config.json` (defaults shown):
     {
       "data_dir": "~/.claude/white-rabbit",
       "gitlab": {"enabled": true, "hosts": ["gitlab.com"],
-                 "ignore_commands": ["glab mr list", "glab mr view", "glab mr diff", "glab api"],
+                 "ignore_commands": ["glab mr list", "glab mr view", "glab mr diff", "glab api",
+                                     "cat", "jq", "grep", "rg", "curl", "head", "tail", "less"],
                  "glab": "glab"},
       "notes": {"enabled": false, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
       "todo": {"instructions": true}

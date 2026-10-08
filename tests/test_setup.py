@@ -78,3 +78,18 @@ class SetupTest(IsolatedCase):
         self.assertEqual(self.run_setup()[0], 1)
         with open(self.path) as fh:
             self.assertEqual(fh.read(), "{broken")
+
+    def test_without_an_executable_it_writes_python_dash_m(self):
+        with mock.patch.object(setup.shutil, "which", return_value=None), \
+             mock.patch.object(sys, "argv", ["/x/white_rabbit/__main__.py", "setup"]), \
+             mock.patch.object(sys, "stdout", io.StringIO()):
+            setup.run([], settings_path=self.path)
+        command = self.read()["statusLine"]["command"]
+        self.assertTrue(command.endswith(" -m white_rabbit statusline"), command)
+        self.assertIn(sys.executable, command)
+
+    def test_a_path_with_spaces_is_quoted(self):
+        with mock.patch.object(sys, "stdout", io.StringIO()):
+            setup.run([], settings_path=self.path, exe="/My Tools/white-rabbit")
+        self.assertEqual(self.read()["statusLine"]["command"], "'/My Tools/white-rabbit' statusline")
+

@@ -21,6 +21,17 @@ class GitLabTest(IsolatedCase):
         for command in ("glab mr list", "glab mr view 189", "cd x && glab mr diff 3", "glab api projects/1"):
             self.assertEqual(self.gl().mr_urls(command, MR), [], command)
 
+    def test_a_command_is_ignored_only_when_every_segment_is_a_read(self):
+        gl = self.gl()
+        self.assertEqual(gl.mr_urls("git pushon x 2>&1 | tail -5", MR), [MR])
+        self.assertEqual(gl.mr_urls("git pushon x && glab api -X PUT projects/1", MR), [MR])
+        self.assertEqual(gl.mr_urls("cat ~/.claude/r/a.json | jq .mrs", MR), [])
+        self.assertEqual(gl.mr_urls("FOO=1 grep -r merge_requests notes/", MR), [])
+        self.assertEqual(gl.mr_urls("cd repo && glab mr view 3", MR), [])
+
+    def test_a_listed_tool_is_ignored(self):
+        self.assertEqual(self.gl(ignore_commands=["gtlb"]).mr_urls("gtlb watch --once", MR), [])
+
     def test_new_and_diffs_urls_are_not_merge_requests(self):
         out = "https://gitlab.com/g/p/-/merge_requests/new?x=1 https://gitlab.com/g/p/-/merge_requests/12/diffs"
         self.assertEqual(self.gl().mr_urls("echo", out), [])
