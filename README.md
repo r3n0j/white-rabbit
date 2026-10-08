@@ -4,7 +4,7 @@
 current session left behind:
 
 - **MR:** the GitLab merge requests the session opened, with their state;
-- **ToDo:** the actions the session expects from you, the next one first;
+- **Next:** the actions the session expects from you, the next one first;
 - **Notes:** the note files the session wrote (optional).
 
 Pure Python (3.10+), no dependency, no network except `glab api` to refresh merge requests.

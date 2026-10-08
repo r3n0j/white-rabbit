@@ -42,7 +42,7 @@ def _note_item(note):
 def statusline_lines(data):
     """Footer de la statusline : une ligne `MR:` (liens OSC 8 `repo!iid`, état écrit
     s'il n'est pas « opened »), une ligne `Notes:` (liens de notes courts, au plus
-    STATUSLINE_MAX_NOTES puis `+N`) et une ligne `ToDo:` (le next, puis `(+N)` pour les
+    STATUSLINE_MAX_NOTES puis `+N`) et une ligne `Next:` (l'action next, puis `(+N)` pour les
     autres items). Intitulés aqua, liens bleu clair, next en blanc vif, le reste atténué ;
     sans couleur si NO_COLOR est défini. Une ligne vide est omise."""
     lines = []
@@ -65,7 +65,7 @@ def statusline_lines(data):
     upcoming = registry.next_todo(data)
     if upcoming:
         rest = len(registry.visible_todos(data)) - 1
-        lines.append(_paint("ToDo:", STATUSLINE_LABEL) + " " + _paint(f"▸ {upcoming['text']}", STATUSLINE_NEXT)
+        lines.append(_paint("Next:", STATUSLINE_LABEL) + " " + _paint(f"▸ {upcoming['text']}", STATUSLINE_NEXT)
                      + (" " + _paint(f"(+{rest})", STATUSLINE_DIM) if rest else ""))
     return lines
 

@@ -51,12 +51,12 @@ class StatuslineTest(RegistryCase):
         reg.add_mr(SID, MR1)
         reg.set_todo_items(SID, ["Relire !5", "[next] Valider le plan 2", "Pousser main"])
         self.assertEqual(self.plain(statusline.statusline_lines(reg.load(SID))),
-                         ["MR: atlas-api!189", "ToDo: ▸ Valider le plan 2 (+2)"])
+                         ["MR: atlas-api!189", "Next: ▸ Valider le plan 2 (+2)"])
 
     def test_statusline_lines_single_todo_has_no_counter_and_is_not_truncated(self):
         reg.set_todo_items(SID, ["y" * 80])
         line, = self.plain(statusline.statusline_lines(reg.load(SID)))
-        self.assertEqual(line, "ToDo: ▸ " + "y" * 80)
+        self.assertEqual(line, "Next: ▸ " + "y" * 80)
 
     def test_statusline_lines_are_coloured(self):
         reg.add_mr(SID, MR2)
@@ -69,7 +69,7 @@ class StatuslineTest(RegistryCase):
         self.assertTrue(mr_line.startswith("\033[1;38;5;51mMR:\033[0m "))
         self.assertIn("\033[38;5;33mops!77\033[0m", mr_line)
         self.assertIn("\033[2m(closed)\033[0m", mr_line)
-        self.assertTrue(todo_line.startswith("\033[1;38;5;51mToDo:\033[0m "))
+        self.assertTrue(todo_line.startswith("\033[1;38;5;51mNext:\033[0m "))
         self.assertIn("\033[1;97m▸ Valider\033[0m", todo_line)
         self.assertTrue(todo_line.endswith("\033[2m(+1)\033[0m"))
 
@@ -79,7 +79,7 @@ class StatuslineTest(RegistryCase):
         with mock.patch.dict(os.environ, {"NO_COLOR": "1"}):
             lines = statusline.statusline_lines(reg.load(SID))
         self.assertFalse(any("\033[" in line for line in lines))
-        self.assertEqual(self.plain(lines), ["MR: atlas-api!189", "ToDo: ▸ A (+1)"])
+        self.assertEqual(self.plain(lines), ["MR: atlas-api!189", "Next: ▸ A (+1)"])
 
     def test_statusline_lines_empty_or_malformed_todo_adds_no_line(self):
         reg.set_todo_items(SID, [])
