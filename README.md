@@ -16,7 +16,7 @@ Pure Python (3.10+), no dependency, no network except `glab api` to refresh merg
 
 The repository is private: ask for access first; git must be able to clone it (HTTPS credentials or SSH key).
 
-    pipx install git+https://github.com/r3n0j/white-rabbit@v0.1.0
+    pipx install git+https://github.com/r3n0j/white-rabbit@v0.2.0
     white-rabbit setup --dry-run   # shows what it will add to ~/.claude/settings.json
     white-rabbit setup
 
