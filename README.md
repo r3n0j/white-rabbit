@@ -7,6 +7,9 @@ current session left behind:
 - **Next:** the actions the session expects from you, the next one first;
 - **Notes:** the note files the session wrote (optional).
 
+It also asks Claude to end every answer with a short recap block (what was done, merge
+requests, next action), consistent with the statusline.
+
 Pure Python (3.10+), no dependency, no network except `glab api` to refresh merge requests.
 
 ## Install
@@ -29,6 +32,10 @@ existing statusline without `--force`.
   (`cd` is neutral). `git push … | tail -5` is still captured.
 - The to-do list is written by Claude itself with `white-rabbit todo "[next] …" "…"`: the
   SessionStart hook gives it the instructions (see `white-rabbit instructions`).
+- The same hook asks Claude to end every answer with a recap block: Done (with the merge
+  requests, branches and commits of the answer, and the notes it wrote when notes are on),
+  Step and Next, the Next line being the `[next]` action of the to-do list. Turn it off
+  with `"recap": {"enabled": false}`.
 - One JSON file per session in `~/.claude/white-rabbit/`, purged after 30 days.
 
 ## Settings
@@ -42,7 +49,8 @@ Optional `~/.config/white-rabbit/config.json` (defaults shown):
                                      "cat", "jq", "grep", "rg", "curl", "head", "tail", "less"],
                  "glab": "glab"},
       "notes": {"enabled": false, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
-      "todo": {"instructions": true}
+      "todo": {"instructions": true},
+      "recap": {"enabled": true}
     }
 
 `notes.link` is `obsidian` (`obsidian://open?vault=<vault>&file=…`), `file` or `none`.

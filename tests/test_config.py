@@ -13,6 +13,7 @@ class SettingsTest(IsolatedCase):
         self.assertFalse(s["notes"]["enabled"])
         self.assertEqual(s["notes"]["link"], "file")
         self.assertTrue(s["todo"]["instructions"])
+        self.assertTrue(s["recap"]["enabled"])
         self.assertEqual(s["data_dir"], self.dir)
 
     def test_a_file_overrides_only_its_keys(self):

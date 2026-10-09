@@ -11,7 +11,7 @@ usage: white-rabbit <command>
   todo ["[next] action" ...]   replace this session's to-do list
   statusline                   render the statusline (payload on stdin)
   add-mr <url> [session]       add a merge request by hand
-  instructions                 print the to-do instructions given to Claude
+  instructions                 print the to-do and recap instructions given to Claude
   setup [--dry-run] [--force]  register the statusline and hooks in ~/.claude/settings.json"""
 
 
@@ -52,8 +52,9 @@ def _hook(action):
         registry.refresh(payload.get("session_id"))
     elif action == "start":
         registry.purge()
-        if config.settings()["todo"]["instructions"]:
-            print(instructions.session_start_output())
+        output = instructions.session_start_output(config.settings())
+        if output:
+            print(output)
 
 
 def main(argv=None):
@@ -75,7 +76,7 @@ def main(argv=None):
             if registry.add_mr(sid, rest[0]):
                 print("merge request added to session %s" % sid)
         elif command == "instructions":
-            print(instructions.TEXT)
+            print(instructions.render(config.settings()))
         elif command == "setup":
             from white_rabbit import setup
             return setup.run(rest)

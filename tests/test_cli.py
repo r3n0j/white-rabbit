@@ -6,7 +6,7 @@ import sys
 from unittest import mock
 
 from tests.test_registry import MR1, SID, RegistryCase
-from white_rabbit import cli, instructions
+from white_rabbit import cli, config, instructions
 from white_rabbit import registry as reg
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
@@ -47,15 +47,20 @@ class HookCaptureTest(RegistryCase):
 
 
 class HookStartTest(RegistryCase):
-    def test_injects_the_todo_instructions(self):
+    def test_injects_the_instructions(self):
         code, out = run(["hook", "start"], {"session_id": SID, "source": "startup"})
         self.assertEqual(code, 0)
         body = json.loads(out)["hookSpecificOutput"]
         self.assertEqual(body["hookEventName"], "SessionStart")
-        self.assertEqual(body["additionalContext"], instructions.TEXT)
+        self.assertEqual(body["additionalContext"], instructions.render(config.settings()))
 
-    def test_nothing_when_instructions_are_off(self):
+    def test_recap_alone_is_still_injected(self):
         self.configure(todo={"instructions": False})
+        body = json.loads(run(["hook", "start"], {"session_id": SID})[1])["hookSpecificOutput"]
+        self.assertIn("**Done**", body["additionalContext"])
+
+    def test_nothing_when_todo_and_recap_are_off(self):
+        self.configure(todo={"instructions": False}, recap={"enabled": False})
         self.assertEqual(run(["hook", "start"], {"session_id": SID})[1], "")
 
     def test_start_purges_old_registries(self):
@@ -94,7 +99,7 @@ class OtherCommandsTest(RegistryCase):
         self.assertIn("atlas-api!189", run(["statusline"], {"session_id": SID})[1])
 
     def test_instructions_prints_the_text(self):
-        self.assertEqual(run(["instructions"])[1].strip(), instructions.TEXT.strip())
+        self.assertEqual(run(["instructions"])[1].strip(), instructions.render(config.settings()).strip())
 
     def test_the_launcher_runs_without_installation(self):
         out = subprocess.run([os.path.join(ROOT, "bin", "white-rabbit"), "instructions"],

@@ -18,6 +18,7 @@ DEFAULTS = {
     },
     "notes": {"enabled": False, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
     "todo": {"instructions": True},
+    "recap": {"enabled": True},
 }
 CHOICES = {("notes", "link"): ("obsidian", "file", "none")}
 PATHS = (("notes", "root"),)
