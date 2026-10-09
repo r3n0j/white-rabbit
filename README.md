@@ -16,6 +16,9 @@ Pure Python (3.10+), no dependency, no network except `glab api` to refresh merg
 
 The repository is private: ask for access first; git must be able to clone it (HTTPS credentials or SSH key).
 
+Requirements: Python 3.10+ and `pipx`; `glab` installed and logged in, or merge requests are
+captured but their state (opened, merged) is never refreshed.
+
     pipx install git+https://github.com/r3n0j/white-rabbit@v0.2.0
     white-rabbit setup --dry-run   # shows what it will add to ~/.claude/settings.json
     white-rabbit setup
@@ -23,6 +26,16 @@ The repository is private: ask for access first; git must be able to clone it (H
 `setup` adds the statusline and three hooks (PostToolUse on Bash/Write/Edit, Stop, SessionStart)
 with the absolute path of the command, keeps a `settings.json.bak`, and never replaces an
 existing statusline without `--force`.
+
+Then open a **new** Claude Code session (the instructions are given at session start): the
+statusline shows the merge requests and the Next line, and answers end with the recap block.
+
+### Upgrade
+
+The install is pinned to a tag, so `pipx upgrade` does not move to a newer one: install the new
+tag over the old one (the hooks keep working, no new `setup` needed).
+
+    pipx install --force git+https://github.com/r3n0j/white-rabbit@v<new version>
 
 ## How it works
 
