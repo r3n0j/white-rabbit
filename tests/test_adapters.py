@@ -17,29 +17,33 @@ class GitLabTest(IsolatedCase):
         self.assertEqual(self.gl().mr_urls("git pushon feat/x", out),
                          [MR, "https://gitlab.com/g/ops/-/merge_requests/77"])
 
-    def test_known_reads_are_ignored(self):
-        for command in ("glab mr list", "glab mr view 189", "cd x && glab mr diff 3", "glab api projects/1"):
-            self.assertEqual(self.gl().mr_urls(command, MR), [], command)
-
-    def test_a_command_is_ignored_only_when_every_segment_is_a_read(self):
+    def test_only_commands_that_create_or_push_a_merge_request_are_captured(self):
         gl = self.gl()
-        self.assertEqual(gl.mr_urls("git pushon x 2>&1 | tail -5", MR), [MR])
-        self.assertEqual(gl.mr_urls("git pushon x && glab api -X PUT projects/1", MR), [MR])
-        self.assertEqual(gl.mr_urls("cat ~/.claude/r/a.json | jq .mrs", MR), [])
-        self.assertEqual(gl.mr_urls("FOO=1 grep -r merge_requests notes/", MR), [])
-        self.assertEqual(gl.mr_urls("cd repo && glab mr view 3", MR), [])
+        for command in ("git push origin feat/x", "git pushon x 2>&1 | tail -5", "cd repo && git push",
+                        "/usr/bin/git push", "git -C repo push", "git -c k=v pushon x", "glab mr create --fill",
+                        "git pushon x && glab api -X PUT projects/1"):
+            self.assertEqual(gl.mr_urls(command, MR), [MR], command)
 
-    def test_a_listed_tool_is_ignored(self):
-        self.assertEqual(self.gl(ignore_commands=["gtlb"]).mr_urls("gtlb watch --once", MR), [])
+    def test_reads_and_other_commands_are_ignored(self):
+        gl = self.gl()
+        for command in ("glab mr view 189", "glab api projects/1", "cat a.json | jq .mrs", "sed -n 1,9p t.jsonl",
+                        "cd x && cut -c1-300 t.jsonl", "N=1; sed -n 2p t.jsonl", "python3 -c 'print(1)'",
+                        "echo git push", "git log --grep push", ""):
+            self.assertEqual(gl.mr_urls(command, MR), [], command)
+
+    def test_the_capturing_commands_are_configurable(self):
+        gl = self.gl(capture_commands=["gtlb create"])
+        self.assertEqual(gl.mr_urls("gtlb create --draft", MR), [MR])
+        self.assertEqual(gl.mr_urls("git push", MR), [])
 
     def test_new_and_diffs_urls_are_not_merge_requests(self):
         out = "https://gitlab.com/g/p/-/merge_requests/new?x=1 https://gitlab.com/g/p/-/merge_requests/12/diffs"
-        self.assertEqual(self.gl().mr_urls("echo", out), [])
+        self.assertEqual(self.gl().mr_urls("git push", out), [])
 
     def test_unlisted_hosts_are_ignored_and_listed_ones_kept(self):
         own = "https://git.example.org/team/app/-/merge_requests/5"
-        self.assertEqual(self.gl().mr_urls("echo", own), [])
-        self.assertEqual(self.gl(hosts=["git.example.org"]).mr_urls("echo", own), [own])
+        self.assertEqual(self.gl().mr_urls("git push", own), [])
+        self.assertEqual(self.gl(hosts=["git.example.org"]).mr_urls("git push", own), [own])
 
     def test_parse(self):
         self.assertEqual(self.gl().parse(MR), ("arx-cf/atlas-api", 189))

@@ -39,10 +39,11 @@ tag over the old one (the hooks keep working, no new `setup` needed).
 
 ## How it works
 
-- A merge request URL printed by any Bash command becomes a merge request of the session,
-  unless every part of the command (split on `&&`, `||`, `;`, `|`) is a read: `glab mr
-  list|view|diff`, `glab api`, `cat`, `jq`, `grep`, `rg`, `curl`, `head`, `tail`, `less`
-  (`cd` is neutral). `git push … | tail -5` is still captured.
+- A merge request URL printed by a Bash command becomes a merge request of the session only
+  when a part of the command (split on `&&`, `||`, `;`, `|`) pushes or creates one:
+  `git push`, `git pushon`, `glab mr create` (`gitlab.capture_commands`; `git -C repo push`
+  and `cd repo && git push … | tail -5` count). Reading a file or a transcript that quotes a
+  merge request never captures it; `white-rabbit add-mr <url>` adds one by hand.
 - The to-do list is written by Claude itself with `white-rabbit todo "[next] …" "…"`: the
   SessionStart hook gives it the instructions (see `white-rabbit instructions`).
 - The same hook asks Claude to end every answer with a recap block: Done (with the merge
@@ -58,8 +59,7 @@ Optional `~/.config/white-rabbit/config.json` (defaults shown):
     {
       "data_dir": "~/.claude/white-rabbit",
       "gitlab": {"enabled": true, "hosts": ["gitlab.com"],
-                 "ignore_commands": ["glab mr list", "glab mr view", "glab mr diff", "glab api",
-                                     "cat", "jq", "grep", "rg", "curl", "head", "tail", "less"],
+                 "capture_commands": ["git push", "git pushon", "glab mr create"],
                  "glab": "glab"},
       "notes": {"enabled": false, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
       "todo": {"instructions": true},
@@ -68,6 +68,8 @@ Optional `~/.config/white-rabbit/config.json` (defaults shown):
 
 `notes.link` is `obsidian` (`obsidian://open?vault=<vault>&file=…`), `file` or `none`.
 A wrong value keeps its default and is logged in `<data_dir>/errors.log`.
+`gitlab.ignore_commands` (before 0.3) is no longer read: list the commands that push or create
+a merge request in `capture_commands` instead.
 
 ## Commands
 

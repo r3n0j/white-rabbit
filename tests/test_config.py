@@ -9,7 +9,7 @@ class SettingsTest(IsolatedCase):
         s = config.settings()
         self.assertTrue(s["gitlab"]["enabled"])
         self.assertEqual(s["gitlab"]["hosts"], ["gitlab.com"])
-        self.assertIn("glab mr view", s["gitlab"]["ignore_commands"])
+        self.assertIn("git push", s["gitlab"]["capture_commands"])
         self.assertFalse(s["notes"]["enabled"])
         self.assertEqual(s["notes"]["link"], "file")
         self.assertTrue(s["todo"]["instructions"])

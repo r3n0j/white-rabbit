@@ -12,8 +12,7 @@ DEFAULTS = {
     "gitlab": {
         "enabled": True,
         "hosts": ["gitlab.com"],
-        "ignore_commands": ["glab mr list", "glab mr view", "glab mr diff", "glab api",
-                            "cat", "jq", "grep", "rg", "curl", "head", "tail", "less"],
+        "capture_commands": ["git push", "git pushon", "glab mr create"],
         "glab": "glab",
     },
     "notes": {"enabled": False, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
