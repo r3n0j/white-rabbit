@@ -27,6 +27,10 @@ End every answer, a plain answer to a question included, with this block:
 ```
 
 A subagent never adds this block to its report: the main agent talks to the user.
+Skip the block when the turn ends only to wait for background work you launched (subagents,
+workflow, background command) and nothing is expected from the user: one short status line is
+enough. The block comes back when you hand control back to the user (run finished, question,
+blocker).
 
 Done
 - Only when the answer had an effect: file created or changed, command with a side effect,
