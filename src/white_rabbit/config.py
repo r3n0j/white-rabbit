@@ -86,10 +86,14 @@ def _environment(merged):
         merged["notes"].update(enabled=True, root=env["SESSION_REGISTRY_VAULT"], link="obsidian")
     if env.get("SESSION_REGISTRY_VAULT_NAME"):
         merged["notes"]["vault"] = env["SESSION_REGISTRY_VAULT_NAME"]
+    if env.get("WHITE_RABBIT_INSTRUCTIONS") == "off":
+        merged["todo"]["instructions"] = False
+        merged["recap"]["enabled"] = False
 
 
 ENV_KEYS = ("WHITE_RABBIT_DIR", "WHITE_RABBIT_CONFIG", "XDG_CONFIG_HOME", "HOME", "SESSION_REGISTRY_DIR",
-            "SESSION_REGISTRY_GLAB", "SESSION_REGISTRY_VAULT", "SESSION_REGISTRY_VAULT_NAME")
+            "SESSION_REGISTRY_GLAB", "SESSION_REGISTRY_VAULT", "SESSION_REGISTRY_VAULT_NAME",
+            "WHITE_RABBIT_INSTRUCTIONS")
 _CACHE = {}
 
 

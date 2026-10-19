@@ -58,6 +58,16 @@ class SettingsTest(IsolatedCase):
         s = config.settings()["notes"]
         self.assertEqual((s["enabled"], s["root"], s["link"], s["vault"]), (True, "/v/Omniscience", "obsidian", "Omni"))
 
+    def test_instructions_variable_turns_todo_and_recap_off(self):
+        os.environ["WHITE_RABBIT_INSTRUCTIONS"] = "off"
+        s = config.settings()
+        self.assertEqual((s["todo"]["instructions"], s["recap"]["enabled"]), (False, False))
+
+    def test_instructions_variable_keeps_the_file_otherwise(self):
+        os.environ["WHITE_RABBIT_INSTRUCTIONS"] = "on"
+        s = config.settings()
+        self.assertEqual((s["todo"]["instructions"], s["recap"]["enabled"]), (True, True))
+
     def test_log_error_never_raises(self):
         os.environ["WHITE_RABBIT_DIR"] = "/proc/forbidden/dir"
         config.log_error("ctx", ValueError("x"))

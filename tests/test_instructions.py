@@ -60,6 +60,10 @@ class RenderTest(IsolatedCase):
         self.assertEqual(body["hookEventName"], "SessionStart")
         self.assertEqual(body["additionalContext"], instructions.render(cfg))
 
+    def test_session_start_output_is_none_when_the_variable_is_off(self):
+        os.environ["WHITE_RABBIT_INSTRUCTIONS"] = "off"
+        self.assertIsNone(instructions.session_start_output(config.settings()))
+
     def test_session_start_output_is_none_when_empty(self):
         self.configure(todo={"instructions": False}, recap={"enabled": False})
         self.assertIsNone(instructions.session_start_output(config.settings()))

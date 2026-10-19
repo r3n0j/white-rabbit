@@ -160,6 +160,9 @@ Optional `~/.config/white-rabbit/config.json` (defaults shown):
       "recap": {"enabled": true}
     }
 
+`WHITE_RABBIT_INSTRUCTIONS=off` in the environment of a session turns both instructions off, whatever
+the file says: handy for headless runs (`claude -p` launched by a scheduler) whose output nobody reads.
+
 `notes.link` is `obsidian` (`obsidian://open?vault=<vault>&file=…`), `file` or `none`.
 A wrong value keeps its default and is logged in `<data_dir>/errors.log`.
 `gitlab.ignore_commands` (older versions) is no longer read: list the commands that push or create
