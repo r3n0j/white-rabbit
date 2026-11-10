@@ -29,9 +29,15 @@ captured but their state (opened, merged) is never refreshed.
     white-rabbit setup --dry-run   # shows what it will add to ~/.claude/settings.json
     white-rabbit setup
 
-`setup` adds the statusline and three hooks (PostToolUse on Bash/Write/Edit, Stop, SessionStart)
-with the absolute path of the command, keeps a `settings.json.bak`, and never replaces an
-existing statusline without `--force`.
+`setup` adds the statusline (redrawn every 60 s by `refreshInterval`) and three hooks
+(PostToolUse on Bash/Write/Edit, Stop, SessionStart) with the absolute path of the command,
+keeps a `settings.json.bak`, and never replaces an existing statusline without `--force`.
+
+Merge request states are refreshed by the Stop hook for its own session, and by a detached
+`white-rabbit refresh-all` the statusline starts at most once a minute: it refreshes the stale
+merge requests of every session active in the last 24 hours, unplugged ones included. A to-do
+item that cites merge requests (`repo !iid`, `!iid` or the URL) is linked to them when written,
+and hidden once they are all merged.
 
 Then open a **new** Claude Code session (the instructions are given at session start): the
 statusline shows the merge requests and the Next line, and answers end with the recap block.
@@ -173,6 +179,7 @@ a merge request in `capture_commands` instead.
     white-rabbit hook capture|refresh|start
     white-rabbit todo ["[next] action" ...]
     white-rabbit statusline
+    white-rabbit refresh-all
     white-rabbit add-mr <url> [session]
     white-rabbit instructions
     white-rabbit setup [--dry-run] [--force]

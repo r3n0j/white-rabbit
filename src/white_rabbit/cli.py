@@ -10,6 +10,7 @@ usage: white-rabbit <command>
   hook capture|refresh|start   Claude Code hooks (payload on stdin)
   todo ["[next] action" ...]   replace this session's to-do list
   statusline                   render the statusline (payload on stdin)
+  refresh-all                  refresh the stale merge requests of the recent sessions
   add-mr <url> [session]       add a merge request by hand
   instructions                 print the to-do and recap instructions given to Claude
   setup [--dry-run] [--force]  register the statusline and hooks in ~/.claude/settings.json"""
@@ -71,6 +72,8 @@ def main(argv=None):
             text = statusline.render(sys.stdin.read())
             if text:
                 print(text)
+        elif command == "refresh-all":
+            registry.refresh_all()
         elif command == "add-mr" and rest:
             sid = rest[1] if len(rest) > 1 else os.environ.get("CLAUDE_CODE_SESSION_ID")
             if registry.add_mr(sid, rest[0]):

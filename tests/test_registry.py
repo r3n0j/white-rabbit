@@ -18,6 +18,7 @@ from white_rabbit import registry as reg
 SID = "11111111-2222-3333-4444-555555555555"
 MR1 = "https://gitlab.com/arx-cf/atlas-api/-/merge_requests/189"
 MR2 = "https://gitlab.com/arx-cf/ops/-/merge_requests/77"
+SPAWN_REFRESH = reg.spawn_refresh
 
 
 def NOTES(vault):
@@ -31,6 +32,9 @@ class RegistryCase(IsolatedCase):
         os.makedirs(os.path.join(self.vault, "B. Areas", "Claude Code"))
         self.configure(notes=NOTES(self.vault))
         self.addCleanup(os.environ.pop, "STUB_GLAB_RESPONSES", None)
+        spawn = mock.patch.object(reg, "spawn_refresh")
+        spawn.start()
+        self.addCleanup(spawn.stop)
 
     def note(self, *parts):
         path = os.path.join(self.vault, *parts)
@@ -293,6 +297,117 @@ class RefreshTest(GlabStubCase):
         start = time.time()
         reg.refresh(SID, timeout=1)
         self.assertLess(time.time() - start, 2.5)
+
+
+OTHER = "99999999-8888-7777-6666-555555555555"
+DM141 = "https://gitlab.com/arx-cf/dm-api/-/merge_requests/141"
+CM12 = "https://gitlab.com/arx-cf/client-manager/-/merge_requests/12"
+
+
+class TodoLinkTest(RegistryCase):
+    def test_an_item_citing_a_merge_request_of_the_session_is_linked(self):
+        reg.add_mr(SID, DM141)
+        reg.set_todo_items(SID, ["Relire et merger dm-api !141 avant la release", "Prévenir Arnaud"])
+        linked, plain = reg.load(SID)["todos"]
+        self.assertEqual([m["url"] for m in linked["mrs"]], [DM141])
+        self.assertNotIn("mrs", plain)
+
+    def test_a_merge_request_of_another_session_is_linked(self):
+        reg.add_mr(OTHER, CM12)
+        reg.set_todo_items(SID, ["Relire client-manager !12"])
+        self.assertEqual([m["url"] for m in reg.load(SID)["todos"][0]["mrs"]], [CM12])
+
+    def test_a_bare_iid_or_a_word_that_is_no_repo_links_a_unique_merge_request(self):
+        reg.add_mr(SID, DM141)
+        reg.add_mr(SID, MR1)
+        reg.set_todo_items(SID, ["Merger !141", "Relire atlas-api!189"])
+        self.assertEqual([[m["url"] for m in t["mrs"]] for t in reg.load(SID)["todos"]], [[DM141], [MR1]])
+
+    def test_a_full_url_is_linked(self):
+        reg.add_mr(SID, DM141)
+        reg.set_todo_items(SID, ["Relire " + DM141])
+        self.assertEqual([m["url"] for m in reg.load(SID)["todos"][0]["mrs"]], [DM141])
+
+    def test_an_item_with_one_unknown_reference_is_not_linked(self):
+        reg.add_mr(SID, DM141)
+        reg.set_todo_items(SID, ["Relire dm-api !141 et client-manager !12", "Relire ops !55"])
+        self.assertEqual([t.get("mrs") for t in reg.load(SID)["todos"]], [None, None])
+
+    def test_another_known_repo_never_borrows_the_iid(self):
+        reg.add_mr(SID, DM141)
+        reg.add_mr(SID, "https://gitlab.com/arx-cf/ops/-/merge_requests/98")
+        reg.set_todo_items(SID, ["Relire ops !141"])
+        self.assertNotIn("mrs", reg.load(SID)["todos"][0])
+
+    def test_an_item_whose_merge_requests_are_all_merged_is_hidden(self):
+        reg.add_mr(SID, DM141)
+        reg.add_mr(OTHER, CM12)
+        reg.set_todo_items(SID, ["[next] Sync ArgoCD dm-api", "Merger dm-api !141 et client-manager !12"])
+        data = reg.load(SID)
+        data["mrs"][0]["state"] = "merged"
+        self.assertEqual(len(reg.visible_todos(data)), 2)
+        data["todos"][1]["mrs"][1]["state"] = "merged"
+        self.assertEqual([t["text"] for t in reg.visible_todos(data)], ["Sync ArgoCD dm-api"])
+
+    def test_the_state_of_the_session_merge_request_wins_over_the_snapshot(self):
+        reg.add_mr(SID, DM141)
+        reg.set_todo_items(SID, ["[next] Merger dm-api !141"])
+        data = reg.load(SID)
+        data["mrs"][0]["state"] = "merged"
+        self.assertEqual(reg.visible_todos(data), [])
+        self.assertIsNone(reg.next_todo(data))
+
+
+class LinkedRefreshTest(GlabStubCase):
+    def test_refresh_updates_the_snapshot_of_a_merge_request_of_another_session(self):
+        reg.add_mr(OTHER, CM12)
+        reg.set_todo_items(SID, ["Merger client-manager !12"])
+        self.respond({"12": {"state": "merged"}})
+        self.assertTrue(reg.needs_refresh(SID))
+        reg.refresh(SID)
+        self.assertEqual(reg.visible_todos(reg.load(SID)), [])
+        self.assertFalse(reg.needs_refresh(SID))
+
+
+class RefreshAllTest(GlabStubCase):
+    def age(self, sid, hours):
+        path = os.path.join(self.dir, sid + ".json")
+        with open(path) as fh:
+            data = json.load(fh)
+        data["updated"] = (__import__("datetime").datetime.now()
+                           - __import__("datetime").timedelta(hours=hours)).isoformat(timespec="seconds")
+        with open(path, "w") as fh:
+            json.dump(data, fh)
+
+    def test_refreshes_the_recent_sessions_and_keeps_their_activity_date(self):
+        reg.add_mr(SID, MR1)
+        reg.add_mr(OTHER, DM141)
+        self.age(OTHER, 30)
+        before = reg.load(SID)["updated"]
+        self.respond({"189": {"state": "merged"}, "141": {"state": "merged"}})
+        reg.refresh_all()
+        self.assertEqual(reg.load(SID)["mrs"][0]["state"], "merged")
+        self.assertEqual(reg.load(SID)["updated"], before)
+        self.assertEqual(reg.load(OTHER)["mrs"][0]["state"], "opened")
+
+    def test_does_nothing_while_another_refresh_holds_the_lock(self):
+        reg.add_mr(SID, MR1)
+        self.respond({"189": {"state": "merged"}})
+        import fcntl
+        os.makedirs(self.dir, exist_ok=True)
+        with open(os.path.join(self.dir, "refresh-all.lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            reg.refresh_all()
+        self.assertEqual(reg.load(SID)["mrs"][0]["state"], "opened")
+
+    def test_spawn_refresh_is_throttled(self):
+        with mock.patch.object(reg.subprocess, "Popen") as popen:
+            SPAWN_REFRESH()
+            SPAWN_REFRESH()
+        self.assertEqual(popen.call_count, 1)
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv[-1], "refresh-all")
+        self.assertTrue(popen.call_args.kwargs.get("start_new_session"))
 
 
 @unittest.skipUnless(os.environ.get("SESSION_REGISTRY_CONTRACT_MR"), "contrôle de contrat glab réel")

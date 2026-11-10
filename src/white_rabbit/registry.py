@@ -9,6 +9,8 @@ import fcntl
 import json
 import os
 import re
+import subprocess
+import sys
 import time
 
 from white_rabbit import adapters, config
@@ -20,6 +22,10 @@ SAFE_SID = re.compile(r"^[\w-]+$")
 TODO_NEXT = re.compile(r"^\[next\]\s*", re.IGNORECASE)
 TODO_MAX_ITEMS = 10
 TODO_MAX_CHARS = 200
+MR_REF = re.compile(r"(?:([\w.\-]+)\s*)?!(\d+)\b")
+REFRESH_ALL_WINDOW_HOURS = 24
+REFRESH_ALL_MAX_MRS = 12
+SPAWN_EVERY = 60
 
 
 def _now():
@@ -61,8 +67,9 @@ def _read(sid):
     return data
 
 
-def _write(data):
-    data["updated"] = _now()
+def _write(data, touch=True):
+    if touch:
+        data["updated"] = _now()
     path = _file(data["session_id"])
     tmp = path + ".tmp"
     with open(tmp, "w") as fh:
@@ -81,7 +88,7 @@ def _locked(sid):
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
-def _mutate(sid, cwd, change):
+def _mutate(sid, cwd, change, touch=True):
     if not _valid(sid):
         return False
     try:
@@ -91,7 +98,7 @@ def _mutate(sid, cwd, change):
                 data["cwd"] = cwd
             changed = change(data)
             if changed:
-                _write(data)
+                _write(data, touch)
             return changed
     except Exception as exc:
         _log_error(f"mutate {sid}", exc)
@@ -193,14 +200,73 @@ def todo_items(labels):
     return items
 
 
+def _sessions():
+    """Identifiants des registres du dossier de données."""
+    try:
+        return [name[:-5] for name in os.listdir(_dir()) if name.endswith(".json") and _valid(name[:-5])]
+    except OSError:
+        return []
+
+
+def _known_mrs(own):
+    """MR connues pour relier la ToDo : celles de la session d'abord, puis celles des autres registres."""
+    known = {}
+    for data in [own] + [_read(sid) for sid in _sessions() if sid != own.get("session_id")]:
+        for mr in data.get("mrs", []):
+            if mr.get("url") and mr.get("project") and mr.get("iid") is not None:
+                known.setdefault(mr["url"], mr)
+    return known
+
+
+def _resolve_ref(repo, iid, known):
+    """URL de la MR que désigne `repo !iid` (repo facultatif) parmi `known`, ou None si elle est
+    inconnue ou ambiguë. Un mot devant `!iid` qui n'est le nom d'aucun repo connu est ignoré."""
+    names = {mr["project"].rsplit("/", 1)[-1] for mr in known.values()}
+    candidates = [mr for mr in known.values() if mr["iid"] == iid]
+    if repo in names:
+        candidates = [mr for mr in candidates if mr["project"].rsplit("/", 1)[-1] == repo]
+    return candidates[0]["url"] if len(candidates) == 1 else None
+
+
+def _linked_mrs(text, known):
+    """Instantanés `{url, state, checked_at}` des MR que cite l'action, ou None si elle n'en cite
+    aucune ou si une seule de ses références est inconnue."""
+    gitlab = adapters.gitlab()
+    urls = []
+    rest = text
+    if gitlab:
+        for match in list(gitlab.url.finditer(text)):
+            url = match.group(0)
+            if url not in known:
+                return None
+            urls.append(url)
+        rest = gitlab.url.sub(" ", text)
+    for repo, iid in MR_REF.findall(rest):
+        url = _resolve_ref(repo, int(iid), known)
+        if url is None:
+            return None
+        urls.append(url)
+    urls = list(dict.fromkeys(urls))
+    if not urls:
+        return None
+    return [{"url": url, "state": known[url].get("state"), "checked_at": known[url].get("checked_at")}
+            for url in urls]
+
+
 def set_todo_items(sid, labels, cwd=None):
     """Remplace la ToDo de la session par la liste d'actions (écrite par `white-rabbit todo`) ;
+    chaque action qui cite des MR connues (`repo !iid`, `!iid`, URL) leur est reliée.
     False si la liste est invalide ou identique."""
     todos = todo_items(labels)
     if todos is None:
         return False
 
     def change(data):
+        known = _known_mrs(data)
+        for item in todos:
+            mrs = _linked_mrs(item["text"], known)
+            if mrs:
+                item["mrs"] = mrs
         if data.get("todos") == todos:
             return False
         data["todos"] = todos
@@ -210,12 +276,23 @@ def set_todo_items(sid, labels, cwd=None):
     return _mutate(sid, cwd, change)
 
 
+def _closed(item, data):
+    """Vrai si toutes les MR reliées à l'action sont mergées ; l'état de la MR du registre de la
+    session prime sur l'instantané de l'action."""
+    linked = item.get("mrs")
+    if not isinstance(linked, list) or not linked:
+        return False
+    states = {mr.get("url"): mr.get("state") for mr in data.get("mrs", [])}
+    return all(states.get(mr.get("url"), mr.get("state")) == "merged" for mr in linked if isinstance(mr, dict))
+
+
 def visible_todos(data):
-    """Items de la ToDo qui ont un texte (registre ancien ou abîmé : liste vide)."""
+    """Items de la ToDo qui ont un texte, sauf ceux dont toutes les MR reliées sont mergées
+    (registre ancien ou abîmé : liste vide)."""
     todos = data.get("todos")
     if not isinstance(todos, list):
         return []
-    return [t for t in todos if isinstance(t, dict) and t.get("text")]
+    return [t for t in todos if isinstance(t, dict) and t.get("text") and not _closed(t, data)]
 
 
 def next_todo(data):
@@ -255,9 +332,18 @@ def _stale(mr, now):
     return checked is None or now - checked >= REFRESH_TTL
 
 
+def _refreshable(data):
+    """MR à suivre : celles de la session, puis les instantanés des MR reliées à la ToDo
+    qui n'en font pas partie."""
+    own = {mr.get("url") for mr in data["mrs"]}
+    linked = [mr for item in data.get("todos") or [] if isinstance(item, dict)
+              for mr in item.get("mrs") or [] if isinstance(mr, dict) and mr.get("url") not in own]
+    return data["mrs"] + linked
+
+
 def needs_refresh(sid):
     now = time.time()
-    return any(_stale(mr, now) for mr in load(sid)["mrs"])
+    return any(_stale(mr, now) for mr in _refreshable(load(sid)))
 
 
 def refresh(sid, timeout=GLAB_TIMEOUT):
@@ -269,7 +355,7 @@ def refresh(sid, timeout=GLAB_TIMEOUT):
         if gitlab is None:
             return
         now = time.time()
-        stale = [mr for mr in load(sid)["mrs"] if _stale(mr, now)]
+        stale = list({mr["url"]: mr for mr in _refreshable(load(sid)) if _stale(mr, now)}.values())
         if not stale:
             return
         results = {}
@@ -284,12 +370,72 @@ def refresh(sid, timeout=GLAB_TIMEOUT):
             return
 
         def change(data):
-            for mr in data["mrs"]:
+            for mr in _refreshable(data):
                 if mr.get("url") in results:
-                    mr.update({k: v for k, v in results[mr["url"]].items() if v is not None})
+                    if "project" in mr:
+                        mr.update({k: v for k, v in results[mr["url"]].items() if v is not None})
+                    elif results[mr["url"]].get("state"):
+                        mr["state"] = results[mr["url"]]["state"]
                     mr["checked_at"] = now
             return True
 
-        _mutate(sid, None, change)
+        _mutate(sid, None, change, touch=False)
     except Exception as exc:
         _log_error(f"refresh {sid}", exc)
+
+
+def _recent(data, now):
+    """Vrai si la session a eu de l'activité (capture, ToDo) dans la fenêtre du refresh croisé."""
+    try:
+        updated = datetime.datetime.fromisoformat(data.get("updated") or "").timestamp()
+    except ValueError:
+        return False
+    return now - updated < REFRESH_ALL_WINDOW_HOURS * 3600
+
+
+def refresh_all(timeout=GLAB_TIMEOUT):
+    """Rafraîchit les MR périmées des sessions récentes, les plus récentes d'abord, au plus
+    REFRESH_ALL_MAX_MRS par passe ; ne fait rien si un autre refresh croisé est en cours."""
+    try:
+        os.makedirs(_dir(), exist_ok=True)
+        with open(os.path.join(_dir(), "refresh-all.lock"), "w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            now = time.time()
+            sessions = [data for data in (_read(sid) for sid in _sessions()) if _recent(data, now)]
+            sessions.sort(key=lambda data: data.get("updated") or "", reverse=True)
+            budget = REFRESH_ALL_MAX_MRS
+            for data in sessions:
+                stale = sum(1 for mr in _refreshable(data) if _stale(mr, now))
+                if not stale:
+                    continue
+                if stale > budget:
+                    continue
+                refresh(data["session_id"], timeout)
+                budget -= stale
+    except Exception as exc:
+        _log_error("refresh_all", exc)
+
+
+def spawn_refresh():
+    """Lance `refresh-all` en processus détaché, au plus une fois toutes les SPAWN_EVERY
+    secondes (horodatage partagé par toutes les sessions) ; n'attend jamais."""
+    try:
+        os.makedirs(_dir(), exist_ok=True)
+        stamp = os.path.join(_dir(), "refresh-all.stamp")
+        try:
+            if time.time() - os.path.getmtime(stamp) < SPAWN_EVERY:
+                return
+        except OSError:
+            pass
+        with open(stamp, "w"):
+            pass
+        src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, [src, os.environ.get("PYTHONPATH")])))
+        subprocess.Popen([sys.executable, "-m", "white_rabbit", "refresh-all"], env=env,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    except Exception as exc:
+        _log_error("spawn_refresh", exc)

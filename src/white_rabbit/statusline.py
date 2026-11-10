@@ -1,5 +1,6 @@
 """Statusline de white-rabbit : MR, notes et ToDo de la session (liens OSC 8, couleurs
-ANSI, désactivées par NO_COLOR). Lecture seule du registre, jamais de réseau."""
+ANSI, désactivées par NO_COLOR). Lit le registre sans jamais attendre le réseau : le
+rafraîchissement des MR part en processus détaché."""
 import json
 import os
 import re
@@ -77,6 +78,7 @@ def render(raw):
         sid = payload.get("session_id") if isinstance(payload, dict) else None
         if not isinstance(sid, str):
             return ""
+        registry.spawn_refresh()
         return "\n".join(statusline_lines(registry.load(sid)))
     except Exception:
         return ""

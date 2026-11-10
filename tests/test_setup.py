@@ -31,7 +31,8 @@ class SetupTest(IsolatedCase):
     def test_adds_the_statusline_and_three_hooks_with_the_absolute_path(self):
         self.assertEqual(self.run_setup()[0], 0)
         data = self.read()
-        self.assertEqual(data["statusLine"], {"type": "command", "command": EXE + " statusline"})
+        self.assertEqual(data["statusLine"], {"type": "command", "command": EXE + " statusline",
+                                              "refreshInterval": 60})
         self.assertEqual(self.commands(data, "PostToolUse"), [EXE + " hook capture"])
         self.assertEqual(data["hooks"]["PostToolUse"][0]["matcher"], "Bash|Write|Edit")
         self.assertEqual(self.commands(data, "Stop"), [EXE + " hook refresh"])

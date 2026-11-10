@@ -106,3 +106,10 @@ class OtherCommandsTest(RegistryCase):
                              capture_output=True, text=True)
         self.assertEqual(out.returncode, 0)
         self.assertIn("white-rabbit todo", out.stdout)
+
+
+class RefreshAllCommandTest(RegistryCase):
+    def test_refresh_all_refreshes_every_recent_session(self):
+        with mock.patch.object(reg, "refresh_all") as refresh_all:
+            self.assertEqual(run(["refresh-all"])[0], 0)
+        refresh_all.assert_called_once_with()

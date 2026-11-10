@@ -11,6 +11,11 @@ from white_rabbit import statusline
 
 
 class StatuslineTest(RegistryCase):
+    def test_render_asks_for_a_background_refresh(self):
+        with mock.patch.object(reg, "spawn_refresh") as spawn:
+            statusline.render(json.dumps({"session_id": SID}))
+        spawn.assert_called_once_with()
+
     def test_statusline_lines_mr_and_notes(self):
         reg.add_mr(SID, MR1)
         reg.add_mr(SID, MR2)

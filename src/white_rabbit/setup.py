@@ -11,6 +11,7 @@ EVENTS = (
     ("Stop", None, "hook refresh", {"async": True}),
     ("SessionStart", None, "hook start", {}),
 )
+STATUSLINE_REFRESH_S = 60
 
 
 def _command():
@@ -56,7 +57,8 @@ def run(args, settings_path=None, exe=None):
     current = (data.get("statusLine") or {}).get("command")
     if not _ours(current, "statusline"):
         if current is None or force:
-            data["statusLine"] = {"type": "command", "command": "%s statusline" % exe}
+            data["statusLine"] = {"type": "command", "command": "%s statusline" % exe,
+                                  "refreshInterval": STATUSLINE_REFRESH_S}
             changes.append("+ statusLine: %s statusline" % exe)
         else:
             refused = True
