@@ -16,6 +16,15 @@ class RenderTest(IsolatedCase):
         self.assertIn("> ✅ **Done**", text)
         self.assertIn("same action as the `[next]`", text)
 
+    def test_todo_rule_separates_expected_actions_from_a_suggested_follow_up(self):
+        self.assertIn("[then]", instructions.TODO)
+        self.assertIn("never a proposal for new work", instructions.TODO)
+
+    def test_recap_block_has_an_optional_then_line(self):
+        text = self.render()
+        self.assertIn("> 💡 **Then** :", text)
+        self.assertIn("`**Then**`", text)
+
     def test_recap_only(self):
         text = self.render(todo={"instructions": False})
         self.assertNotIn("white-rabbit todo", text)

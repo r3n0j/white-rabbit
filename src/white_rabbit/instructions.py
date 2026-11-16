@@ -10,8 +10,12 @@ dropped, or the next one changes), run:
   white-rabbit todo "[next] <the very next action>" "<another action>" ...
 - one action per argument, the complete list on every call (it replaces the previous one);
 - exactly one action prefixed with [next];
-- concrete user actions only, never what you plan to do yourself; at most 10;
-- run `white-rabbit todo` without arguments when nothing is expected from the user."""
+- concrete user actions on the work in progress only (review or merge a merge request, approve a
+  spec or a plan, make a blocking choice, provide a key, run a test), never what you plan to do
+  yourself, never a proposal for new work; at most 10;
+- nothing expected from the user but a follow-up worth suggesting (a new piece of work, the next
+  lot): pass it alone, prefixed with [then]: white-rabbit todo "[then] <suggested follow-up>";
+- run `white-rabbit todo` without arguments when nothing is expected and nothing is suggested."""
 
 RECAP_HEAD = """\
 End every answer, a plain answer to a question included, with this block:
@@ -24,6 +28,7 @@ End every answer, a plain answer to a question included, with this block:
 > ↳ 📝 **Commit(s)** : <type(scope): description>[, …]{note_template}
 > 📍 **Step** : <where the work of this conversation stands>
 > 👉 **Next** : <the next concrete action expected from the user>
+> 💡 **Then** : <the follow-up you suggest, only when nothing is expected from the user>
 ```
 
 A subagent never adds this block to its report: the main agent talks to the user.
@@ -69,17 +74,23 @@ Next
   merge request… Several options still open: name them in one line.
 - Nothing expected from the user: say so ("Next: nothing, I keep going on …").{todo_link}
 
+Then
+- Only when Next says nothing is expected from the user, and you have a follow-up to suggest
+  (a new piece of work, the next lot). Drop the line otherwise. Never an action the user must
+  take on the current work: that one is Next.
+
 Order and form
 - The body of the answer, then the block, always the last lines of the text; a tool call that
   asks the user a question comes after the text, so after the block.
 - A `---` separator, then lines quoted with `>`, no title. Keep the emojis and the exact labels
-  right after them (`**Done**`, `**Step**`, `**Next**`, `**MR**`, `**Branch**`,
+  right after them (`**Done**`, `**Step**`, `**Next**`, `**Then**`, `**MR**`, `**Branch**`,
   `**Commit(s)**`{note_label}) so a tool can find them.
 - Labels stay in English; the content follows the language of the conversation."""
 
 TODO_LINK = """
 - When the to-do list changes, call `white-rabbit todo` before writing the block; the Next
-  line is the same action as the `[next]` one of the to-do list."""
+  line is the same action as the `[next]` one of the to-do list; the Then line is the same text
+  as the `[then]` one."""
 
 
 def _note_link(notes):
