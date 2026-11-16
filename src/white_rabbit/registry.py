@@ -20,6 +20,7 @@ GLAB_TIMEOUT = 5
 PURGE_AGE_DAYS = 30
 SAFE_SID = re.compile(r"^[\w-]+$")
 TODO_NEXT = re.compile(r"^\[next\]\s*", re.IGNORECASE)
+TODO_THEN = re.compile(r"^\[then\]\s*", re.IGNORECASE)
 TODO_MAX_ITEMS = 10
 TODO_MAX_CHARS = 200
 MR_REF = re.compile(r"(?:([\w.\-]+)\s*)?!(\d+)\b")
@@ -170,6 +171,25 @@ def note_link(path):
         return None
 
 
+def split_then(labels):
+    """Sépare la suite proposée (premier argument préfixé de `[then]`, normalisé et tronqué comme une
+    action) des actions attendues ; les autres `[then]` sont ignorés. Une entrée qui n'est pas une
+    liste de chaînes est rendue telle quelle (todo_items la refusera)."""
+    if not isinstance(labels, list) or not all(isinstance(label, str) for label in labels):
+        return labels, None
+    rest, then = [], None
+    for label in labels:
+        text = label.strip()
+        text = text[2:].strip() if text.startswith("- ") else text
+        if TODO_THEN.match(text):
+            text = " ".join(TODO_THEN.sub("", text).split())
+            if then is None and text:
+                then = text if len(text) <= TODO_MAX_CHARS else text[:TODO_MAX_CHARS - 1] + "…"
+            continue
+        rest.append(label)
+    return rest, then
+
+
 def todo_items(labels):
     """ToDo tirée d'une liste d'actions : [{"text", "next"}] avec un seul next (la première
     action préfixée de `[next]`, sinon la première ; un `[next]` au-delà du plafond remplace
@@ -257,6 +277,7 @@ def set_todo_items(sid, labels, cwd=None):
     """Remplace la ToDo de la session par la liste d'actions (écrite par `white-rabbit todo`) ;
     chaque action qui cite des MR connues (`repo !iid`, `!iid`, URL) leur est reliée.
     False si la liste est invalide ou identique."""
+    labels, then = split_then(labels)
     todos = todo_items(labels)
     if todos is None:
         return False
@@ -267,9 +288,10 @@ def set_todo_items(sid, labels, cwd=None):
             mrs = _linked_mrs(item["text"], known)
             if mrs:
                 item["mrs"] = mrs
-        if data.get("todos") == todos:
+        if data.get("todos") == todos and data.get("then") == then:
             return False
         data["todos"] = todos
+        data["then"] = then
         data["todos_updated"] = _now()
         return True
 
@@ -298,6 +320,12 @@ def visible_todos(data):
 def next_todo(data):
     """Item next de la ToDo, ou None."""
     return next((t for t in visible_todos(data) if t.get("next")), None)
+
+
+def then_item(data):
+    """Suite proposée par la session quand rien n'est attendu de l'utilisateur, ou None."""
+    then = data.get("then")
+    return then if isinstance(then, str) and then else None
 
 
 def visible_mrs(data):

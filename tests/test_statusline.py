@@ -101,6 +101,14 @@ class StatuslineTest(RegistryCase):
         self.assertEqual([n["title"] for n in reg.visible_notes(data)], ["kept"])
         self.assertEqual(self.plain(statusline.statusline_lines(data)), ["Notes: kept"])
 
+    def test_statusline_lines_then_line_when_nothing_is_next(self):
+        reg.set_todo_items(SID, ["[then] Lancer le lot B"])
+        self.assertEqual(self.plain(statusline.statusline_lines(reg.load(SID))), ["Then: ◦ Lancer le lot B"])
+
+    def test_statusline_lines_no_then_line_beside_a_next(self):
+        data = {"mrs": [], "notes": [], "todos": [{"text": "Relire", "next": True}], "then": "Lancer B"}
+        self.assertEqual(self.plain(statusline.statusline_lines(data)), ["Next: ▸ Relire"])
+
     def plain(self, lines):
         return [re.sub(r"\033\]8;;[^\033]*\033\\|\033\[[\d;]*m", "", line) for line in lines]
 

@@ -8,7 +8,7 @@ from white_rabbit import adapters, config, instructions, registry, statusline
 USAGE = """\
 usage: white-rabbit <command>
   hook capture|refresh|start   Claude Code hooks (payload on stdin)
-  todo ["[next] action" ...]   replace this session's to-do list
+  todo ["[next] action" ... "[then] idea"]  replace this session's to-do list (and suggested follow-up)
   statusline                   render the statusline (payload on stdin)
   refresh-all                  refresh the stale merge requests of the recent sessions
   add-mr <url> [session]       add a merge request by hand

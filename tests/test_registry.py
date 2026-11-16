@@ -181,6 +181,23 @@ class LibraryTest(RegistryCase):
         self.assertEqual(reg.visible_todos(data), [{"text": "A", "next": True}])
         self.assertEqual(reg.visible_todos({"todos": "pas une liste"}), [])
 
+    def test_split_then_takes_the_first_then_label_out_of_the_list(self):
+        self.assertEqual(reg.split_then(["[then] Lancer le lot B", "[then] Autre"]), ([], "Lancer le lot B"))
+        self.assertEqual(reg.split_then(["[next] Relire !5", "Merger"]), (["[next] Relire !5", "Merger"], None))
+
+    def test_set_todo_items_stores_then_apart_and_clears_it_when_absent(self):
+        reg.set_todo_items(SID, ["[then] Lancer le lot B"])
+        data = reg.load(SID)
+        self.assertEqual((data["todos"], reg.then_item(data)), ([], "Lancer le lot B"))
+        reg.set_todo_items(SID, ["[next] Relire !5"])
+        data = reg.load(SID)
+        self.assertIsNone(reg.then_item(data))
+        self.assertEqual([t["text"] for t in data["todos"]], ["Relire !5"])
+
+    def test_then_item_of_an_old_or_broken_registry(self):
+        self.assertIsNone(reg.then_item({}))
+        self.assertIsNone(reg.then_item({"then": 3}))
+
     def test_set_todo_items_with_unsafe_session_id_writes_nothing(self):
         self.assertFalse(reg.set_todo_items("../x", ["A"]))
         self.assertFalse(reg.set_todo_items(None, ["A"]))

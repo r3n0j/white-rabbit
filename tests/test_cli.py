@@ -76,6 +76,11 @@ class TodoTest(RegistryCase):
         run(["todo", "[next] Relire !5", "Merger"], env={"CLAUDE_CODE_SESSION_ID": SID})
         self.assertEqual([t["text"] for t in reg.load(SID)["todos"]], ["Relire !5", "Merger"])
 
+    def test_then_goes_apart_from_the_actions(self):
+        run(["todo", "[then] Lancer le lot B"], env={"CLAUDE_CODE_SESSION_ID": SID})
+        data = reg.load(SID)
+        self.assertEqual((data["todos"], data["then"]), ([], "Lancer le lot B"))
+
     def test_without_arguments_clears_the_list(self):
         run(["todo", "a"], env={"CLAUDE_CODE_SESSION_ID": SID})
         run(["todo"], env={"CLAUDE_CODE_SESSION_ID": SID})
