@@ -3,7 +3,8 @@
 *Follow the white rabbit.* white-rabbit shows, in the Claude Code statusline, what the
 current session left behind:
 
-- **MR:** the GitLab merge requests the session opened, with their state;
+- **MR:** how many of the merge requests the session opened are merged (`✓ N merged`) and
+  still to merge (`● N to merge`), then the ones not merged yet, with their state;
 - **Next:** the actions the session expects from you, the next one first;
 - **Notes:** the note files the session wrote (optional).
 
@@ -106,7 +107,7 @@ Code session. In that session:
    `Next: ▸ Try white-rabbit` at the next refresh. `white-rabbit todo` with no argument
    clears it.
 3. After a `git push` that opens or updates a merge request, the statusline shows
-   `MR: repo!iid`.
+   `MR: ● 1 to merge : repo!iid`.
 
 An empty statusline is normal for a session with no merge request, note or to-do.
 

@@ -333,6 +333,13 @@ def visible_mrs(data):
     return [mr for mr in data.get("mrs", []) if mr.get("state") != "merged"]
 
 
+def mr_counts(data):
+    """(mergées, à merger) parmi les MR de la session ; les closed ne comptent ni d'un côté ni
+    de l'autre."""
+    states = [mr.get("state") for mr in data.get("mrs", [])]
+    return states.count("merged"), states.count("opened")
+
+
 def visible_notes(data):
     """Notes à afficher : celles encore présentes sur le disque."""
     return [note for note in data.get("notes", []) if os.path.exists(note.get("path") or "")]

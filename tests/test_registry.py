@@ -97,6 +97,11 @@ class LibraryTest(RegistryCase):
         data["mrs"][1]["state"] = "merged"
         self.assertEqual(reg.visible_mrs(data), [])
 
+    def test_mr_counts_split_merged_and_to_merge(self):
+        data = {"mrs": [{"state": "merged"}, {"state": "opened"}, {"state": "opened"}, {"state": "closed"}]}
+        self.assertEqual(reg.mr_counts(data), (1, 2))
+        self.assertEqual(reg.mr_counts({"mrs": []}), (0, 0))
+
     def test_corrupted_file_is_treated_as_empty(self):
         os.makedirs(self.dir)
         with open(os.path.join(self.dir, f"{SID}.json"), "w") as fh:

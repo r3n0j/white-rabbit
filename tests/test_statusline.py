@@ -24,7 +24,7 @@ class StatuslineTest(RegistryCase):
         data = reg.load(SID)
         data["mrs"][1]["state"] = "closed"
         self.assertEqual(self.plain(statusline.statusline_lines(data)), [
-            "MR: atlas-api!189 · ops!77 (closed)",
+            "MR: ● 1 to merge : atlas-api!189 · ops!77 (closed)",
             "Notes: claude-session-registry-design · plan",
         ])
         self.assertEqual(statusline.statusline_lines(reg.load("inconnue")), [])
@@ -56,7 +56,7 @@ class StatuslineTest(RegistryCase):
         reg.add_mr(SID, MR1)
         reg.set_todo_items(SID, ["Relire !5", "[next] Valider le plan 2", "Pousser main"])
         self.assertEqual(self.plain(statusline.statusline_lines(reg.load(SID))),
-                         ["MR: atlas-api!189", "Next: ▸ Valider le plan 2 (+2)"])
+                         ["MR: ● 1 to merge : atlas-api!189", "Next: ▸ Valider le plan 2 (+2)"])
 
     def test_statusline_lines_single_todo_has_no_counter_and_is_not_truncated(self):
         reg.set_todo_items(SID, ["y" * 80])
@@ -78,13 +78,40 @@ class StatuslineTest(RegistryCase):
         self.assertIn("\033[1;97m▸ Valider\033[0m", todo_line)
         self.assertTrue(todo_line.endswith("\033[2m(+1)\033[0m"))
 
+    def test_statusline_lines_count_merged_and_to_merge_mrs(self):
+        data = {"mrs": [{"project": "g/atlas-api", "iid": 1, "url": "u1", "state": "merged"},
+                        {"project": "g/crm-api", "iid": 2, "url": "u2", "state": "merged"},
+                        {"project": "g/ops", "iid": 3, "url": "u3", "state": "opened"},
+                        {"project": "g/dm-api", "iid": 4, "url": "u4", "state": "closed"}],
+                "notes": []}
+        self.assertEqual(self.plain(statusline.statusline_lines(data)),
+                         ["MR: ✓ 2 merged · ● 1 to merge : ops!3 · dm-api!4 (closed)"])
+
+    def test_statusline_lines_keep_the_mr_line_once_all_are_merged(self):
+        data = {"mrs": [{"project": "g/atlas-api", "iid": 1, "url": "u1", "state": "merged"}], "notes": []}
+        self.assertEqual(self.plain(statusline.statusline_lines(data)), ["MR: ✓ 1 merged"])
+
+    def test_statusline_lines_only_closed_mrs_have_no_counter(self):
+        data = {"mrs": [{"project": "g/ops", "iid": 3, "url": "u3", "state": "closed"}], "notes": []}
+        self.assertEqual(self.plain(statusline.statusline_lines(data)), ["MR: ops!3 (closed)"])
+
+    def test_statusline_lines_counter_dots_are_coloured(self):
+        data = {"mrs": [{"project": "g/atlas-api", "iid": 1, "url": "u1", "state": "merged"},
+                        {"project": "g/ops", "iid": 3, "url": "u3", "state": "opened"}],
+                "notes": []}
+        with mock.patch.dict(os.environ, clear=False):
+            os.environ.pop("NO_COLOR", None)
+            (line,) = statusline.statusline_lines(data)
+        self.assertIn("\033[38;5;42m✓\033[0m 1 merged", line)
+        self.assertIn("\033[38;5;214m●\033[0m 1 to merge", line)
+
     def test_no_color_disables_the_colours(self):
         reg.add_mr(SID, MR1)
         reg.set_todo_items(SID, ["A", "B"])
         with mock.patch.dict(os.environ, {"NO_COLOR": "1"}):
             lines = statusline.statusline_lines(reg.load(SID))
         self.assertFalse(any("\033[" in line for line in lines))
-        self.assertEqual(self.plain(lines), ["MR: atlas-api!189", "Next: ▸ A (+1)"])
+        self.assertEqual(self.plain(lines), ["MR: ● 1 to merge : atlas-api!189", "Next: ▸ A (+1)"])
 
     def test_statusline_lines_empty_or_malformed_todo_adds_no_line(self):
         reg.set_todo_items(SID, [])
@@ -118,7 +145,7 @@ class StatuslineTest(RegistryCase):
         reg.add_note(SID, self.note("B. Areas", "n.md"), True)
         out = statusline.render(json.dumps({"session_id": SID, "model": {"id": "x"}}))
         plain = re.sub(r"\033\]8;;[^\033]*\033\\|\033\[[\d;]*m", "", out)
-        self.assertEqual(plain.splitlines(), ["MR: atlas-api!189", "Notes: n"])
+        self.assertEqual(plain.splitlines(), ["MR: ● 1 to merge : atlas-api!189", "Notes: n"])
 
     def test_a_note_without_link_is_plain_text(self):
         self.configure(notes={"enabled": True, "root": self.vault, "link": "none"})
