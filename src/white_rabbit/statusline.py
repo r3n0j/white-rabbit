@@ -15,6 +15,7 @@ STATUSLINE_LINK = "38;5;33"
 STATUSLINE_NEXT = "1;97"
 STATUSLINE_DIM = "2"
 STATUSLINE_MERGED = "38;5;42"
+STATUSLINE_FRESH_MERGED = "9;38;5;42"
 STATUSLINE_TO_MERGE = "38;5;214"
 
 
@@ -42,19 +43,25 @@ def _note_item(note):
     return _osc8(label, url) if url else label
 
 
+def _mr_item(mr, style):
+    return _osc8(_paint(f"{mr['project'].rsplit('/', 1)[-1]}!{mr['iid']}", style), mr["url"])
+
+
 def _mr_line(data):
-    """Ligne `MR:` : compteurs `✓ N merged · ● N to merge` (un compteur à zéro est omis), puis
-    après `:` les MR non mergées (liens OSC 8 `repo!iid`, état écrit s'il n'est pas
-    « opened ») ; None sans aucune MR."""
+    """Ligne `MR:` : compteurs `✓ N merged · ● N to merge` (un compteur à zéro est omis), le
+    premier suivi des MR mergées depuis la dernière réponse (barrées), puis après `:` les MR
+    non mergées (liens OSC 8 `repo!iid`, état écrit s'il n'est pas « opened ») ; None sans
+    aucune MR."""
     merged, to_merge = registry.mr_counts(data)
     counters = []
     if merged:
         counters.append(_paint("✓", STATUSLINE_MERGED) + f" {merged} merged")
+        counters += [_mr_item(mr, STATUSLINE_FRESH_MERGED) for mr in registry.fresh_merged(data)]
     if to_merge:
         counters.append(_paint("●", STATUSLINE_TO_MERGE) + f" {to_merge} to merge")
     items = []
     for mr in registry.visible_mrs(data):
-        item = _osc8(_paint(f"{mr['project'].rsplit('/', 1)[-1]}!{mr['iid']}", STATUSLINE_LINK), mr["url"])
+        item = _mr_item(mr, STATUSLINE_LINK)
         if mr.get("state") != "opened":
             state = STATE_WORDS.get(mr.get("state"), mr.get("state") or "unknown")
             item += " " + _paint(f"({state})", STATUSLINE_DIM)

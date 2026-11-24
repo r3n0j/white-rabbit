@@ -4,7 +4,8 @@
 current session left behind:
 
 - **MR:** how many of the merge requests the session opened are merged (`✓ N merged`) and
-  still to merge (`● N to merge`), then the ones not merged yet, with their state;
+  still to merge (`● N to merge`), the ones merged since Claude's last answer struck through
+  after the merged count, then the ones not merged yet, with their state;
 - **Next:** the actions the session expects from you, the next one first;
 - **Notes:** the note files the session wrote (optional).
 

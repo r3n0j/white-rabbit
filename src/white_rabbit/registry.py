@@ -340,6 +340,25 @@ def mr_counts(data):
     return states.count("merged"), states.count("opened")
 
 
+def fresh_merged(data):
+    """MR mergées depuis la dernière marque de fin de réponse (cf. mark_merged_seen)."""
+    seen = set(data.get("merged_seen") or [])
+    return [mr for mr in data.get("mrs", []) if mr.get("state") == "merged" and mr.get("url") not in seen]
+
+
+def mark_merged_seen(sid):
+    """Retient, à la fin d'une réponse, les MR déjà mergées : seules celles mergées ensuite
+    restent « fraîches »."""
+    def change(data):
+        seen = sorted(mr["url"] for mr in data.get("mrs", []) if mr.get("state") == "merged" and mr.get("url"))
+        if data.get("merged_seen", []) == seen:
+            return False
+        data["merged_seen"] = seen
+        return True
+
+    return _mutate(sid, None, change, touch=False)
+
+
 def visible_notes(data):
     """Notes à afficher : celles encore présentes sur le disque."""
     return [note for note in data.get("notes", []) if os.path.exists(note.get("path") or "")]

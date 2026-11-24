@@ -83,13 +83,26 @@ class StatuslineTest(RegistryCase):
                         {"project": "g/crm-api", "iid": 2, "url": "u2", "state": "merged"},
                         {"project": "g/ops", "iid": 3, "url": "u3", "state": "opened"},
                         {"project": "g/dm-api", "iid": 4, "url": "u4", "state": "closed"}],
-                "notes": []}
+                "merged_seen": ["u1", "u2"], "notes": []}
         self.assertEqual(self.plain(statusline.statusline_lines(data)),
                          ["MR: ✓ 2 merged · ● 1 to merge : ops!3 · dm-api!4 (closed)"])
 
     def test_statusline_lines_keep_the_mr_line_once_all_are_merged(self):
-        data = {"mrs": [{"project": "g/atlas-api", "iid": 1, "url": "u1", "state": "merged"}], "notes": []}
+        data = {"mrs": [{"project": "g/atlas-api", "iid": 1, "url": "u1", "state": "merged"}],
+                "merged_seen": ["u1"], "notes": []}
         self.assertEqual(self.plain(statusline.statusline_lines(data)), ["MR: ✓ 1 merged"])
+
+    def test_statusline_lines_list_the_mrs_merged_since_the_last_answer(self):
+        data = {"mrs": [{"project": "g/atlas-api", "iid": 1, "url": "u1", "state": "merged"},
+                        {"project": "g/atlas-api", "iid": 45, "url": "u45", "state": "merged"},
+                        {"project": "g/ops", "iid": 3, "url": "u3", "state": "opened"}],
+                "merged_seen": ["u1"], "notes": []}
+        self.assertEqual(self.plain(statusline.statusline_lines(data)),
+                         ["MR: ✓ 2 merged · atlas-api!45 · ● 1 to merge : ops!3"])
+        with mock.patch.dict(os.environ, clear=False):
+            os.environ.pop("NO_COLOR", None)
+            (line,) = statusline.statusline_lines(data)
+        self.assertIn("\033]8;;u45\033\\\033[9;38;5;42matlas-api!45\033[0m", line)
 
     def test_statusline_lines_only_closed_mrs_have_no_counter(self):
         data = {"mrs": [{"project": "g/ops", "iid": 3, "url": "u3", "state": "closed"}], "notes": []}

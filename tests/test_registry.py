@@ -102,6 +102,29 @@ class LibraryTest(RegistryCase):
         self.assertEqual(reg.mr_counts(data), (1, 2))
         self.assertEqual(reg.mr_counts({"mrs": []}), (0, 0))
 
+    def test_fresh_merged_are_the_mrs_merged_since_the_last_mark(self):
+        reg.add_mr(SID, MR1)
+        reg.add_mr(SID, MR2)
+        data = reg.load(SID)
+        data["mrs"][0]["state"] = "merged"
+        self.assertEqual([mr["iid"] for mr in reg.fresh_merged(data)], [189])
+        reg._write(data)
+        self.assertTrue(reg.mark_merged_seen(SID))
+        data = reg.load(SID)
+        self.assertEqual(reg.fresh_merged(data), [])
+        data["mrs"][1]["state"] = "merged"
+        self.assertEqual([mr["iid"] for mr in reg.fresh_merged(data)], [77])
+
+    def test_mark_merged_seen_changes_nothing_twice(self):
+        reg.add_mr(SID, MR1)
+        self.assertFalse(reg.mark_merged_seen(SID))
+        data = reg.load(SID)
+        data["mrs"][0]["state"] = "merged"
+        reg._write(data)
+        self.assertTrue(reg.mark_merged_seen(SID))
+        self.assertFalse(reg.mark_merged_seen(SID))
+        self.assertFalse(reg.mark_merged_seen("inconnue"))
+
     def test_corrupted_file_is_treated_as_empty(self):
         os.makedirs(self.dir)
         with open(os.path.join(self.dir, f"{SID}.json"), "w") as fh:

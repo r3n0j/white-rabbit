@@ -46,6 +46,15 @@ class HookCaptureTest(RegistryCase):
         self.assertEqual(run(["hook", "nope"], "{}")[0], 0)
 
 
+class HookRefreshTest(RegistryCase):
+    def test_marks_the_merged_mrs_before_refreshing(self):
+        calls = []
+        with mock.patch.object(reg, "mark_merged_seen", side_effect=lambda sid: calls.append(("mark", sid))), \
+             mock.patch.object(reg, "refresh", side_effect=lambda sid: calls.append(("refresh", sid))):
+            self.assertEqual(run(["hook", "refresh"], {"session_id": SID})[0], 0)
+        self.assertEqual(calls, [("mark", SID), ("refresh", SID)])
+
+
 class HookStartTest(RegistryCase):
     def test_injects_the_instructions(self):
         code, out = run(["hook", "start"], {"session_id": SID, "source": "startup"})

@@ -50,6 +50,7 @@ def _hook(action):
     if action == "capture":
         _capture(payload)
     elif action == "refresh":
+        registry.mark_merged_seen(payload.get("session_id"))
         registry.refresh(payload.get("session_id"))
     elif action == "start":
         registry.purge()
