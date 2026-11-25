@@ -89,13 +89,18 @@ async function loadGit($: EngineInterface, cwd: string | null | undefined): Prom
     const branch = tracking?.[1] ?? '?'
     const upstream = tracking?.[2] ?? null
     const counts = tracking?.[3] ?? ''
-    const unpushed = upstream === null ? [] : await (async () => {
-      const log = await $.process.run(['git', 'log', '--format=%h%x09%s', '@{u}..HEAD'], { cwd, timeoutMs: 5_000 })
+    const commits = async (range: string) => {
+      if (upstream === null) {
+        return []
+      }
+      const log = await $.process.run(['git', 'log', '--format=%h%x09%s', range], { cwd, timeoutMs: 5_000 })
       return log.exitCode !== 0 ? [] : log.stdout.split('\n').filter(Boolean).map(line => {
         const [sha = '', ...subject] = line.split('\t')
         return { sha, subject: subject.join('\t') }
       })
-    })()
+    }
+    const unpushed = await commits('@{u}..HEAD')
+    const incoming = await commits('HEAD..@{u}')
     return {
       branch,
       upstream,
@@ -103,6 +108,7 @@ async function loadGit($: EngineInterface, cwd: string | null | undefined): Prom
       behind: Number(/behind (\d+)/.exec(counts)?.[1] ?? 0),
       files: lines.map(line => ({ status: line.slice(0, 2).trim(), path: line.slice(3) })),
       unpushed,
+      incoming,
     }
   } catch {
     return null
@@ -128,18 +134,22 @@ function askPipeline($: EngineInterface, mr: Mr) {
     `Asked the session to look into the pipeline of ${mr.label}`)
 }
 
+function plural(n: number, word: string) {
+  return `${n} ${word}${n > 1 ? 's' : ''}`
+}
+
 function askCommit($: EngineInterface, repo: Git) {
-  return ask($, `Committe les ${repo.files.length} changements en cours de la branche ${repo.branch}, `
+  return ask($, `Committe ${repo.files.length > 1 ? 'les' : 'le'} ${plural(repo.files.length, 'changement')} en cours de la branche ${repo.branch}, `
     + 'découpés en commits cohérents, aux conventions du repo.', 'Asked the session to commit')
 }
 
 function askPush($: EngineInterface, repo: Git) {
-  return ask($, `Pousse les ${repo.unpushed.length} commits non poussés de la branche ${repo.branch} : `
+  return ask($, `Pousse ${repo.unpushed.length > 1 ? 'les' : 'le'} ${plural(repo.unpushed.length, 'commit')} non ${repo.unpushed.length > 1 ? 'poussés' : 'poussé'} de la branche ${repo.branch} : `
     + 'je donne mon accord pour ce push.', 'Asked the session to push')
 }
 
 function askPull($: EngineInterface, repo: Git) {
-  return ask($, `La branche ${repo.branch} a ${repo.behind} commits de retard sur ${repo.upstream ?? 'sa branche distante'} : `
+  return ask($, `La branche ${repo.branch} a ${plural(repo.behind, 'commit')} de retard sur ${repo.upstream ?? 'sa branche distante'} : `
     + 'mets-la à jour avec git pull --rebase.', 'Asked the session to pull')
 }
 
@@ -563,7 +573,7 @@ export const register: Register = on => {
       todo: todos.length,
       mr: mrs.length,
       notes: notes.length,
-      git: (repo?.files.length ?? 0) + (repo?.unpushed.length ?? 0),
+      git: (repo?.files.length ?? 0) + (repo?.unpushed.length ?? 0) + (repo?.behind ?? 0),
     }
 
     const folded = await read($, folds)
@@ -758,35 +768,45 @@ export const register: Register = on => {
       if (repo === null) {
         return empty('The session folder is not a git repository.')
       }
-      if (counts.git === 0 && repo.behind === 0) {
+      if (counts.git === 0) {
         return empty('Nothing to push, nothing modified.')
       }
-      const actions = [
-        repo.files.length > 0 && (
-          <Button key="git-commit" plain dimColor label="✎ ask to commit" onPress={() => askCommit($, repo)} {...hovered(colors)} />
-        ),
-        repo.unpushed.length > 0 && (
-          <Button key="git-push" plain dimColor label="⇡ ask to push" onPress={() => askPush($, repo)} {...hovered(colors)} />
-        ),
-        repo.behind > 0 && (
-          <Button key="git-pull" plain dimColor label="⇣ ask to pull" onPress={() => askPull($, repo)} {...hovered(colors)} />
-        ),
-      ].filter(Boolean)
+      const action = (key: string, label: string, onPress: () => void) => (
+        <Box key={`${key}-zone`} paddingLeft={2}>
+          <Button key={key} plain dimColor label={label} onPress={onPress} {...hovered(colors)} />
+        </Box>
+      )
+      const commitRow = (commit: { sha: string; subject: string }) => (
+        <Text key={`commit-${commit.sha}`} wrap="truncate-end">
+          <Text color={colors.accent}>{commit.sha} </Text>
+          <Text color={colors.text}>{commit.subject}</Text>
+        </Text>
+      )
       return (
         <Box key="git" flexDirection="column" gap={1}>
-          {actions.length > 0 && <Box key="git-actions" flexDirection="row" flexWrap="wrap" columnGap={2}>{actions}</Box>}
-          {section('git-unpushed', 'UNPUSHED', repo.unpushed.length, () => repo.unpushed.map(commit => (
-            <Text key={`commit-${commit.sha}`} wrap="truncate-end">
-              <Text color={colors.accent}>{commit.sha} </Text>
-              <Text color={colors.text}>{commit.subject}</Text>
-            </Text>
-          )))}
-          {section('git-modified', 'MODIFIED', repo.files.length, () => repo.files.map(file => (
-            <Text key={`file-${file.path}`} wrap="truncate-start">
-              <Text color={file.status === '??' ? colors.opened : colors.accent}>{file.status.padEnd(2)} </Text>
-              <Text color={colors.text}>{file.path}</Text>
-            </Text>
-          )))}
+          {section('git-pull', 'TO PULL', repo.behind, () => (
+            <Box key="git-pull-list" flexDirection="column">
+              {repo.incoming.map(commitRow)}
+              {action('git-pull', '⇣ ask to pull', () => askPull($, repo))}
+            </Box>
+          ))}
+          {section('git-unpushed', 'UNPUSHED', repo.unpushed.length, () => (
+            <Box key="git-unpushed-list" flexDirection="column">
+              {repo.unpushed.map(commitRow)}
+              {action('git-push', '⇡ ask to push', () => askPush($, repo))}
+            </Box>
+          ))}
+          {section('git-modified', 'MODIFIED', repo.files.length, () => (
+            <Box key="git-modified-list" flexDirection="column">
+              {repo.files.map(file => (
+                <Text key={`file-${file.path}`} wrap="truncate-start">
+                  <Text color={file.status === '??' ? colors.opened : colors.accent}>{file.status.padEnd(2)} </Text>
+                  <Text color={colors.text}>{file.path}</Text>
+                </Text>
+              ))}
+              {action('git-commit', '✎ ask to commit', () => askCommit($, repo))}
+            </Box>
+          ))}
         </Box>
       )
     }
@@ -799,6 +819,7 @@ export const register: Register = on => {
           {sessionLine}
           {gitLine}
           {contextLine}
+          <Text key="separator" {...rule} wrap="truncate-end">{'─'.repeat(Math.max(0, width))}</Text>
         </Box>
         {tabs}
         {tabBody()}

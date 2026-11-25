@@ -34,6 +34,7 @@ export type Git = {
   behind: number
   files: { status: string; path: string }[]
   unpushed: { sha: string; subject: string }[]
+  incoming: { sha: string; subject: string }[]
 }
 export type Usage = {
   model: string | null

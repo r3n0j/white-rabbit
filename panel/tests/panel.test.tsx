@@ -317,7 +317,8 @@ test('the pane shows the context, git, merge request details, note ages and past
   })
   on('process.run', async (_, e) => {
     const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } })
-    if (e.argv[0] === 'git' && e.argv[1] === 'status') return out('## develop...origin/develop [ahead 2]\n M src/a.py\n?? b.md\n')
+    if (e.argv[0] === 'git' && e.argv[1] === 'status') return out('## develop...origin/develop [ahead 2, behind 1]\n M src/a.py\n?? b.md\n')
+    if (e.argv[0] === 'git' && e.argv[1] === 'log' && e.argv[3] === 'HEAD..@{u}') return out('fff0001\tfeat: remote\n')
     if (e.argv[0] === 'git' && e.argv[1] === 'log') return out('abc1234\tfeat: x\ndef5678\tfix: y\n')
     return out(JSON.stringify(rich))
   })
@@ -358,10 +359,13 @@ test('the pane shows the context, git, merge request details, note ages and past
   await ui.press({ key: 'tab-git' })
   expect(await ui.find({ type: 'Text', text: 'feat: x' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'src/a.py' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'feat: remote' })).toBeDefined()
+  expect((await ui.find({ key: 'fold-git-pull' }))?.props.label).toBe(' ▾ TO PULL 1 ')
+  await ui.press({ key: 'git-pull' })
   await ui.press({ key: 'git-commit' })
   await ui.press({ key: 'git-push' })
-  expect(await ui.find({ key: 'git-pull' })).toBeUndefined()
-  expect(asked.slice(2)).toEqual([
+  expect(asked[2]).toMatch(/a 1 commit de retard sur origin\/develop/)
+  expect(asked.slice(3)).toEqual([
     'Committe les 2 changements en cours de la branche develop, découpés en commits cohérents, aux conventions du repo.',
     'Pousse les 2 commits non poussés de la branche develop : je donne mon accord pour ce push.',
   ])
