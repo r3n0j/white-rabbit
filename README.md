@@ -196,3 +196,22 @@ a merge request in `capture_commands` instead.
     white-rabbit setup [--dry-run] [--force]
 
 `rabbit` is a short alias.
+
+## Panel (Claude Code mod)
+
+`panel/` is a Claude Code mod that draws the session from `white-rabbit view`: a band above the
+prompt, a pane with every merge request, note and to-do item, and a toast when a merge request is
+merged. Load it in every session from `~/.claude/settings.json`:
+
+    "env": {"CLAUDE_CODE_PLUGIN_DIRS": "~/white-rabbit/panel"}
+
+A session reads it when it starts; a running one picks it up once resumed.
+
+    /rabbit                              show or hide the pane
+    /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
+    /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits
+    /rabbit color [default|matrix|night|forest|ember]  the pane's palette
+
+Without an argument each one moves to the next choice; every choice is kept across sessions.
+With matrix installed, the pane ends with a `⇱ Nebuchadnezzar` button that brings neb to the front.
+Tests: `claude plugin test panel`.
