@@ -107,6 +107,26 @@ def _mutate(sid, cwd, change, touch=True):
         return False
 
 
+TABS = ("todo", "mr", "notes", "git")
+
+
+def open_request_path(sid):
+    """Fichier où `white-rabbit open` dépose la demande d'ouvrir un onglet du panneau."""
+    return os.path.join(_dir(), sid + ".open") if _valid(sid) else None
+
+
+def request_tab(sid, tab):
+    """Demande au panneau de la session d'ouvrir `tab` ; False si la demande est invalide."""
+    if not _valid(sid) or tab not in TABS:
+        return False
+    os.makedirs(_dir(), exist_ok=True)
+    path = open_request_path(sid)
+    with open(path + ".tmp", "w") as fh:
+        json.dump({"tab": tab, "at": time.time()}, fh)
+    os.replace(path + ".tmp", path)
+    return True
+
+
 def load(sid):
     """Registre de la session, vide si inconnu ou illisible."""
     if not _valid(sid):

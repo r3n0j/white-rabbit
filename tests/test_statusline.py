@@ -113,10 +113,12 @@ class StatuslineTest(RegistryCase):
         with mock.patch.dict(os.environ, clear=False):
             os.environ.pop("NO_COLOR", None)
             mr_line, todo_line = statusline.statusline_lines(data)
-        self.assertTrue(mr_line.startswith("\033[1;38;5;51mMR:\033[0m "))
+        self.assertTrue(mr_line.startswith(
+            "\033]8;;rabbit://tab/mr?session=%s\033\\\033[1;38;5;51mMR:\033[0m\033]8;;\033\\ " % SID))
         self.assertIn("\033[38;5;33mops!77\033[0m", mr_line)
         self.assertIn("\033[2m(closed)\033[0m", mr_line)
-        self.assertTrue(todo_line.startswith("\033[1;38;5;51mNext:\033[0m "))
+        self.assertTrue(todo_line.startswith(
+            "\033]8;;rabbit://tab/todo?session=%s\033\\\033[1;38;5;51mNext:\033[0m\033]8;;\033\\ " % SID))
         self.assertIn("\033[1;97m▸ Valider\033[0m", todo_line)
         self.assertTrue(todo_line.endswith("\033[2m(+1)\033[0m"))
 
@@ -215,7 +217,7 @@ class StatuslineTest(RegistryCase):
         reg.add_note(SID, self.note("B. Areas", "plan.md"), True)
         line = statusline.statusline_lines(reg.load(SID))[0]
         self.assertIn("plan", line)
-        self.assertNotIn("\033]8;;", line)
+        self.assertNotIn("\033]8;;", line.split("\033]8;;\033\\ ", 1)[1])
 
     def test_render_survives_any_payload(self):
         for raw in ("", "not json", "[]", "{}", '{"session_id": "../etc"}', '{"session_id": 3}'):

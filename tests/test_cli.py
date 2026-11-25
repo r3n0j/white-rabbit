@@ -105,6 +105,18 @@ class ConfigSetTest(RegistryCase):
         self.assertEqual(config.settings()["display"]["summary"], "statusline")
 
 
+class OpenTest(RegistryCase):
+    def test_a_statusline_link_asks_the_panel_for_its_tab(self):
+        self.assertEqual(run(["open", "rabbit://tab/mr?session=%s" % SID])[0], 0)
+        with open(reg.open_request_path(SID)) as fh:
+            self.assertEqual(json.load(fh)["tab"], "mr")
+
+    def test_refuses_an_unknown_tab_or_scheme(self):
+        self.assertEqual(run(["open", "rabbit://tab/nope?session=%s" % SID])[0], 1)
+        self.assertEqual(run(["open", "https://tab/mr?session=%s" % SID])[0], 1)
+        self.assertFalse(os.path.exists(reg.open_request_path(SID)))
+
+
 class TodoTest(RegistryCase):
     def test_sets_the_todo_of_the_current_session(self):
         run(["todo", "[next] Relire !5", "Merger"], env={"CLAUDE_CODE_SESSION_ID": SID})

@@ -12,6 +12,7 @@ const TABS: { id: Tab; glyph: string; label: string }[] = [
   { id: 'git', glyph: '⎇', label: 'Git' },
 ]
 const REFRESH_MS = 20_000
+const REQUEST_MS = 1_000
 
 const view = atom({ plugin: 'white-rabbit-panel', key: 'view' } as const, null)
 const announced = atom({ plugin: 'white-rabbit-panel', key: 'announced' } as const, [])
@@ -276,6 +277,40 @@ async function showTab($: EngineInterface, wanted: Tab) {
   await $.store.set('tab', wanted)
 }
 
+async function openTab($: EngineInterface, wanted: Tab) {
+  await showTab($, wanted)
+  if (!(await $.ui.panes()).some(pane => pane.id === PANE)) {
+    await refresh($)
+    await $.ui.open({ id: PANE, title: TITLE })
+  }
+}
+
+let handled = 0
+
+async function requestedAt($: EngineInterface, path: string | null | undefined) {
+  if (!path || !(await $.fs.exists(path))) {
+    return 0
+  }
+  return (await $.fs.stat(path)).mtimeMs
+}
+
+async function followRequests($: EngineInterface) {
+  const path = (await read($, view))?.open_request
+  const at = await requestedAt($, path).catch(() => 0)
+  if (!path || at <= handled) {
+    return
+  }
+  handled = at
+  try {
+    const { tab: wanted } = JSON.parse(await $.fs.read(path)) as { tab?: string }
+    if (TABS.some(known => known.id === wanted)) {
+      await openTab($, wanted as Tab)
+    }
+  } catch {
+    // A request half written or unreadable waits for the next one.
+  }
+}
+
 async function place($: EngineInterface, args: string) {
   const asked = args.trim()
   if (asked && !(asked in PLACEMENTS)) {
@@ -431,6 +466,8 @@ export const register: Register = on => {
     await $.command.register({ name: 'rabbit', description: 'Show or hide the white-rabbit pane; /rabbit place cycles its button, /rabbit color its palette, /rabbit display where MR, notes and next show' })
     $.clock.every(REFRESH_MS, () => void refresh($))
     await refresh($)
+    handled = await requestedAt($, (await read($, view))?.open_request).catch(() => 0)
+    $.clock.every(REQUEST_MS, () => void followRequests($))
     return started
   })
 
@@ -519,12 +556,16 @@ export const register: Register = on => {
     const notes = fitting(summary.notes, e.props.bodyColumns - (inBand ? 18 : 8))
     const upcoming = summary.todos.find(todo => todo.next)
     const others = summary.todos.length - 1
-    const label = (text: string) => <Text bold color={colors.accent}>{text}</Text>
+    const label = (text: string, target: Tab) => (
+      <Box key={`head-${text}`}>
+        <Button key={`band-${target}-${text}`} plain label={text} onPress={() => openTab($, target)} {...hovered(colors)} />
+      </Box>
+    )
 
     const rows = [
       merged + to_merge > 0 && (
         <Box key="mr" flexDirection="row" gap={1}>
-          {label('MR:')}
+          {label('MR:', 'mr')}
           {merged > 0 && <Text color={colors.merged}>✓ {merged} merged</Text>}
           {to_merge > 0 && <Text color={colors.opened}>● {to_merge} to merge</Text>}
           {pending.map(mr => (
@@ -534,7 +575,7 @@ export const register: Register = on => {
       ),
       summary.notes.length > 0 && (
         <Box key="notes" flexDirection="row" gap={1}>
-          {label('Notes:')}
+          {label('Notes:', 'notes')}
           {notes.map(note => (
             note.link
               ? <Link key={note.link} href={note.link} label={note.title ?? '?'} />
@@ -545,14 +586,14 @@ export const register: Register = on => {
       ),
       upcoming && (
         <Box key="next" flexDirection="row" gap={1}>
-          {label('Next:')}
+          {label('Next:', 'todo')}
           <Text bold color={colors.text} wrap="truncate-end">▸ {upcoming.text}</Text>
           {others > 0 && <Text {...muted}>(+{others})</Text>}
         </Box>
       ),
       !upcoming && summary.then && (
         <Box key="then" flexDirection="row" gap={1}>
-          {label('Then:')}
+          {label('Then:', 'todo')}
           <Text {...muted} wrap="truncate-end">◦ {summary.then}</Text>
         </Box>
       ),

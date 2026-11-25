@@ -215,6 +215,13 @@ A session reads it when it starts; a running one picks it up once resumed.
     /rabbit color [default|matrix|night|forest|ember]  the pane's palette
 
 Without an argument each one moves to the next choice; every choice is kept across sessions.
+The MR:, Notes: and Next: headers open the pane on their tab: buttons in the band, `rabbit://tab/<tab>`
+links in the statusline that kitty hands to `white-rabbit open` with `~/.config/kitty/open-actions.conf`:
+
+    protocol rabbit
+    action launch --type=background /path/to/white-rabbit open ${URL}
+
+Claude Code seats a pane opened that way from 144 terminal columns only.
 With matrix installed, a `⇱ Nebuchadnezzar` button in the prompt footer, left of `◧ rabbit`, brings neb to the front.
 With the `matrix` palette, the buttons light up in neb's label colour under the pointer.
 `panel/themes/matrix.json` adds a Claude Code theme in neb's colours, `Matrix (neb)` in `/theme`:

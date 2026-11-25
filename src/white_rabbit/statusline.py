@@ -31,6 +31,13 @@ def _paint(text, style):
     return f"\033[{style}m{text}\033[0m"
 
 
+def _label(text, tab, data):
+    """Intitulé de ligne, lien `rabbit://tab/<onglet>?session=<sid>` qui ouvre l'onglet du panneau."""
+    painted = _paint(text, STATUSLINE_LABEL)
+    sid = data.get("session_id")
+    return _osc8(painted, f"rabbit://tab/{tab}?session={sid}") if sid else painted
+
+
 def _short_title(title):
     title = re.sub(r"^\d{4}-\d{2}-\d{2}-", "", title or "?")
     if len(title) <= STATUSLINE_TITLE_WIDTH:
@@ -69,7 +76,7 @@ def _notes_line(data):
         items.append(_paint(f"+{len(named) - len(shown)}", STATUSLINE_DIM))
     if counted:
         items.append(_paint(f"✎ {counted} modified", STATUSLINE_DIM))
-    return _paint("Notes:", STATUSLINE_LABEL) + " " + NOTE_SEPARATOR.join(items)
+    return _label("Notes:", "notes", data) + " " + NOTE_SEPARATOR.join(items)
 
 
 def _mr_label(mr):
@@ -102,7 +109,7 @@ def _mr_line(data):
     parts = [" · ".join(part) for part in (counters, items) if part]
     if not parts:
         return None
-    return _paint("MR:", STATUSLINE_LABEL) + " " + " : ".join(parts)
+    return _label("MR:", "mr", data) + " " + " : ".join(parts)
 
 
 def statusline_lines(data):
@@ -124,10 +131,10 @@ def statusline_lines(data):
     upcoming = registry.next_todo(data)
     if upcoming:
         rest = len(registry.visible_todos(data)) - 1
-        lines.append(_paint("Next:", STATUSLINE_LABEL) + " " + _paint(f"▸ {upcoming['text']}", STATUSLINE_NEXT)
+        lines.append(_label("Next:", "todo", data) + " " + _paint(f"▸ {upcoming['text']}", STATUSLINE_NEXT)
                      + (" " + _paint(f"(+{rest})", STATUSLINE_DIM) if rest else ""))
     elif registry.then_item(data):
-        lines.append(_paint("Then:", STATUSLINE_LABEL) + " " + _paint(f"◦ {registry.then_item(data)}", STATUSLINE_DIM))
+        lines.append(_label("Then:", "todo", data) + " " + _paint(f"◦ {registry.then_item(data)}", STATUSLINE_DIM))
     return lines
 
 
@@ -162,6 +169,7 @@ def session_view(data):
         "then": registry.then_item(data),
         "past": [{"text": t["text"], "at": t.get("at")} for t in data.get("past_todos") or [] if isinstance(t, dict)],
         "cwd": data.get("cwd"),
+        "open_request": registry.open_request_path(data.get("session_id")),
         "output_total": _output_total(data.get("session_id")),
         "display": config.settings()["display"]["summary"],
     }

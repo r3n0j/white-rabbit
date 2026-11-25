@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import urllib.parse
 
 from white_rabbit import adapters, config, instructions, registry, statusline
 
@@ -11,6 +12,7 @@ usage: white-rabbit <command>
   todo ["[next] action" ... "[then] idea"]  replace this session's to-do list (and suggested follow-up)
   statusline                   render the statusline (payload on stdin)
   view [session]               print the session's merge requests, notes and to-do as JSON
+  open <rabbit://tab/<tab>?session=<id>>  ask the session's panel to open a tab (from a statusline link)
   config set <key> <value>     set a choice in config.json (display.summary: statusline|band|off)
   refresh-all                  refresh the stale merge requests of the recent sessions
   add-mr <url> [session]       add a merge request by hand
@@ -78,6 +80,11 @@ def main(argv=None):
         elif command == "view":
             sid = rest[0] if rest else os.environ.get("CLAUDE_CODE_SESSION_ID")
             print(json.dumps(statusline.session_view(registry.load(sid)), ensure_ascii=False))
+        elif command == "open" and rest:
+            url = urllib.parse.urlparse(rest[0])
+            tab = url.path.strip("/") if url.scheme == "rabbit" and url.netloc == "tab" else ""
+            sid = (urllib.parse.parse_qs(url.query).get("session") or [os.environ.get("CLAUDE_CODE_SESSION_ID")])[0]
+            return 0 if registry.request_tab(sid, tab) else 1
         elif command == "config" and len(rest) == 3 and rest[0] == "set":
             problem = config.set_choice(rest[1], rest[2])
             print(problem or "%s = %s" % (rest[1], rest[2]))

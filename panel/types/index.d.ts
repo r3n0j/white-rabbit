@@ -25,6 +25,7 @@ export type View = {
   past?: PastTodo[]
   cwd?: string | null
   output_total?: number | null
+  open_request?: string | null
   display?: Display
 }
 export type Git = {
