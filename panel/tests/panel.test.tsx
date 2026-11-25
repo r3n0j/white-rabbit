@@ -53,7 +53,7 @@ test('the band summarises the session and its button toggles the pane', async ($
   on('process.run', async (_, e) => ({ value: { exitCode: 0, stdout: e.argv[1] === 'view' ? JSON.stringify(VIEW) : '', stderr: '' } }))
   await $.command.run({ command: 'rabbit', args: 'place band' })
   await $.command.run({ command: 'rabbit', args: '' })
-  expect([...open].sort()).toEqual(['white-rabbit-mr', 'white-rabbit-notes', 'white-rabbit-todo'])
+  expect([...open]).toEqual(['white-rabbit'])
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'white-rabbit-panel', surface, ...BAND })
@@ -69,7 +69,7 @@ test('the band summarises the session and its button toggles the pane', async ($
   expect([...open]).toEqual([])
   open.add('ghost')
   await band.press({ key: 'open' })
-  expect([...open].sort()).toEqual(['ghost', 'white-rabbit-mr', 'white-rabbit-notes', 'white-rabbit-todo'])
+  expect([...open].sort()).toEqual(['ghost', 'white-rabbit'])
   await band.unmount()
 })
 
@@ -81,7 +81,7 @@ test('the button reopens a pane closed behind its back', async ($, on) => {
   open.clear()
   const band = await $.ui.mount({ plugin: 'white-rabbit-panel', surface: 'terminal', ...BAND })
   await band.press({ key: 'open' })
-  expect([...open].sort()).toEqual(['white-rabbit-mr', 'white-rabbit-notes', 'white-rabbit-todo'])
+  expect([...open]).toEqual(['white-rabbit'])
   await band.unmount()
 })
 
@@ -95,21 +95,22 @@ test('the pane lists the merge requests, notes and to-do, and a fresh merge is a
   on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify(VIEW), stderr: '' } }))
   await $.command.run({ command: 'rabbit', args: '' })
   for (const surface of ['terminal', 'desktop'] as const) {
-    const tab = (requestId: string) => $.ui.mount({
-      plugin: 'white-rabbit-panel', surface, component: 'Pane', requestId, props: PANE_PROPS as never,
+    const ui = await $.ui.mount({
+      plugin: 'white-rabbit-panel', surface, component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
     })
-    const mr = await tab('white-rabbit-mr')
-    expect((await mr.find({ type: 'Link', text: 'atlas-api!45' }))?.props.href).toBe(VIEW.mrs[0]?.url)
-    await mr.unmount()
-    const notes = await tab('white-rabbit-notes')
+    expect(await ui.find({ type: 'Text', text: /▸ Relire ops!3/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /To-do 1/ })).toBeDefined()
+    await ui.press({ key: 'tab-mr' })
+    expect(kept.get('tab')).toBe('mr')
+    expect((await ui.find({ type: 'Link', text: 'atlas-api!45' }))?.props.href).toBe(VIEW.mrs[0]?.url)
+    expect(await ui.find({ type: 'Text', text: /Relire/ })).toBeUndefined()
+    await ui.press({ key: 'tab-notes' })
     if (surface === 'terminal') {
-      expect((await notes.find({ type: 'Link', text: 'plan' }))?.props.href).toBe(VIEW.notes[0]?.link)
+      expect((await ui.find({ type: 'Link', text: 'plan' }))?.props.href).toBe(VIEW.notes[0]?.link)
     }
-    expect(await notes.find({ type: 'Text', text: 'Modified' })).toBeDefined()
-    await notes.unmount()
-    const todo = await tab('white-rabbit-todo')
-    expect(await todo.find({ type: 'Text', text: /▸ Relire ops!3/ })).toBeDefined()
-    await todo.unmount()
+    expect(await ui.find({ type: 'Text', text: /MODIFIED 1/ })).toBeDefined()
+    await ui.press({ key: 'tab-todo' })
+    await ui.unmount()
   }
   expect(toasts).toEqual(['🐇 atlas-api!45 merged'])
 })
@@ -153,7 +154,7 @@ test('/rabbit place moves the button out of the band', async ($, on) => {
     await band.unmount()
     const ui = await $.ui.mount({ plugin: 'white-rabbit-panel', surface: 'terminal', ...site } as never)
     await ui.press({ key: 'open' })
-    expect([...open].sort()).toEqual(['white-rabbit-mr', 'white-rabbit-notes', 'white-rabbit-todo'])
+    expect([...open]).toEqual(['white-rabbit'])
     await ui.press({ key: 'open' })
     expect([...open]).toEqual([])
     await ui.unmount()
@@ -178,11 +179,11 @@ test('/rabbit place and /rabbit color cycle without an argument', async ($, on) 
   expect(await said('color')).toBe('Rabbit pane painted night.')
   await $.command.run({ command: 'rabbit', args: '' })
   const ui = await $.ui.mount({
-    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit-notes',
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit',
     props: PANE_PROPS as never,
   })
   expect((await ui.find({ key: 'body' }))?.props.backgroundColor).toBe('#1e1e2e')
-  expect((await ui.find({ type: 'Text', text: 'Created' }))?.props.color).toBe('#89b4fa')
+  expect((await ui.find({ type: 'Text', text: / ▸ To-do 1 / }))?.props.backgroundColor).toBe('#89b4fa')
   await ui.unmount()
   expect(await said('color ember')).toBe('Rabbit pane painted ember.')
   expect(await said('color')).toBe('Rabbit pane painted default.')
@@ -252,7 +253,7 @@ test('the footer holds the rabbit button by default and Nebuchadnezzar when matr
   expect(await after.find({ key: 'neb' })).toBeDefined()
   await after.unmount()
   const pane = await $.ui.mount({
-    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit-todo',
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit',
     props: PANE_PROPS as never,
   })
   expect(await pane.find({ key: 'neb' })).toBeUndefined()

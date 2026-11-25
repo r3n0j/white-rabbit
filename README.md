@@ -200,14 +200,14 @@ a merge request in `capture_commands` instead.
 ## Panel (Claude Code mod)
 
 `panel/` is a Claude Code mod that draws the session from `white-rabbit view`: a band above the
-prompt, three panes Claude Code shows as tabs (To-do, MR, Notes), and a toast when a merge request is
+prompt, a pane in neb's style with To-do, MR and Notes tabs (the open one is kept), and a toast when a merge request is
 merged. Load it in every session from `~/.claude/settings.json`:
 
     "env": {"CLAUDE_CODE_PLUGIN_DIRS": "~/white-rabbit/panel"}
 
 A session reads it when it starts; a running one picks it up once resumed.
 
-    /rabbit                              show or hide the panes
+    /rabbit                              show or hide the pane
     /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
     /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits (mode: right of the prompt footer)
     /rabbit color [default|matrix|night|forest|ember]  the pane's palette

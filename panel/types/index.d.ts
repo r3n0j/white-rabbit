@@ -2,6 +2,7 @@ export type Mr = { label: string; url: string; state: string | null; title: stri
 export type Note = { title: string | null; action: string | null; link: string | null }
 export type Todo = { text: string; next: boolean }
 export type Placement = 'band' | 'hint' | 'mode' | 'turn'
+export type Tab = 'todo' | 'mr' | 'notes'
 export type Display = 'statusline' | 'band' | 'off'
 export type Palette = 'default' | 'matrix' | 'night' | 'forest' | 'ember'
 export type View = {
@@ -15,6 +16,6 @@ export type View = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'white-rabbit-panel': { view: View | null; announced: string[]; placement: Placement; palette: Palette; neb: boolean }
+    'white-rabbit-panel': { view: View | null; announced: string[]; placement: Placement; palette: Palette; neb: boolean; tab: Tab }
   }
 }
