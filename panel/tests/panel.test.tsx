@@ -270,7 +270,8 @@ test('the footer holds the rabbit button by default and Nebuchadnezzar when matr
 test('the MR tab splits open, merged this turn and merged earlier, each section folding on its header', async ($, on) => {
   panes(on)
   const old = { label: 'ops!1', url: 'https://gitlab.com/g/ops/-/merge_requests/1', state: 'merged', title: null, fresh: false }
-  on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, mrs: [...VIEW.mrs, old] }), stderr: '' } }))
+  const older = { ...old, label: 'ops!0', url: 'https://gitlab.com/g/ops/-/merge_requests/0' }
+  on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, mrs: [older, ...VIEW.mrs, old] }), stderr: '' } }))
   await $.command.run({ command: 'rabbit', args: '' })
   const ui = await $.ui.mount({
     plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
@@ -278,12 +279,13 @@ test('the MR tab splits open, merged this turn and merged earlier, each section 
   await ui.press({ key: 'tab-mr' })
   expect((await ui.find({ key: 'fold-mr-open' }))?.props.label).toBe(' ▾ OPEN 1 ')
   expect((await ui.find({ key: 'fold-mr-fresh' }))?.props.label).toBe(' ▾ MERGED THIS TURN 1 ')
-  expect((await ui.find({ key: 'fold-mr-merged' }))?.props.label).toBe(' ▸ MERGED 1 ')
+  expect((await ui.find({ key: 'fold-mr-merged' }))?.props.label).toBe(' ▸ MERGED 2 ')
   expect(await ui.find({ key: 'fold-mr-closed' })).toBeUndefined()
   expect(await ui.find({ type: 'Link', text: 'ops!1' })).toBeUndefined()
 
   await ui.press({ key: 'fold-mr-merged' })
-  expect(await ui.find({ type: 'Link', text: 'ops!1' })).toBeDefined()
+  const merged = await ui.findAll({ type: 'Link', text: /^ops!\d$/ })
+  expect(merged.map(link => link.text)).toEqual(['ops!3', 'ops!1', 'ops!0'])
   await ui.press({ key: 'fold-mr-open' })
   expect(await ui.find({ type: 'Link', text: 'ops!3' })).toBeUndefined()
   expect(kept.get('folds')).toEqual({ 'mr-merged': false, 'mr-open': true })
@@ -299,6 +301,11 @@ test('the pane shows the context, git, merge request details, note ages and past
     notes: [{ ...VIEW.notes[0], at: '2026-11-25T12:00:00' }],
     past: [{ text: 'Merger ops!2', at: '2026-11-25T14:30:00' }],
   }
+  const asked: string[] = []
+  on('prompt.submit', async (_, e) => {
+    asked.push(e.text)
+    return {} as never
+  })
   let compacted = 0
   on('session.compact', async () => {
     compacted += 1
@@ -314,7 +321,9 @@ test('the pane shows the context, git, merge request details, note ages and past
   const ui = await $.ui.mount({
     plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
   })
-  expect(await ui.find({ type: 'Text', text: '42%' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '42% ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '84k / 200k tokens' })).toBeDefined()
+  expect((await ui.find({ key: 'compact' }))?.props.label).toBe('⇣')
   expect(await ui.find({ type: 'Text', text: /5h 62% ↺17:00/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /✎ 2 modified · ⇡ 2 unpushed/ })).toBeDefined()
   await ui.press({ key: 'compact' })
@@ -328,6 +337,11 @@ test('the pane shows the context, git, merge request details, note ages and past
   expect(await ui.find({ type: 'Text', text: /✖ pipeline/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /need rebase/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /2 comments/ })).toBeDefined()
+  await ui.press({ key: `rebase-${VIEW.mrs[1]?.url}` })
+  await ui.press({ key: `pipeline-${VIEW.mrs[1]?.url}` })
+  expect(asked).toHaveLength(2)
+  expect(asked[0]).toMatch(/^Rebase la MR ops!3 \(https:/)
+  expect(asked[1]).toMatch(/pipeline de la MR ops!3 .* est en échec/)
 
   await ui.press({ key: 'tab-notes' })
   expect(await ui.find({ type: 'Text', text: '3h' })).toBeDefined()

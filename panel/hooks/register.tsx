@@ -24,11 +24,11 @@ const usage = atom({ plugin: 'white-rabbit-panel', key: 'usage' } as const, null
 const FOLDED_BY_DEFAULT = ['mr-merged', 'mr-closed', 'todo-past']
 const neb = atom({ plugin: 'white-rabbit-panel', key: 'neb' } as const, false)
 
-type Colors = { background?: string; accent: string; hover?: string; rule?: string; alarm?: string; text?: string; muted?: string; merged: string; opened: string }
+type Colors = { background?: string; accent: string; hover?: string; rule?: string; alarm?: string; tip?: string; text?: string; muted?: string; merged: string; opened: string }
 
 const PALETTES: Record<Palette, Colors> = {
   default: { accent: 'cyan', merged: 'green', opened: 'yellow' },
-  matrix: { background: '#04111b', accent: '#2ea7db', hover: '#7fb3c4', rule: '#26566e', alarm: '#e0303a', text: '#d8f0f8', muted: '#7fb3c4', merged: '#78d8c0', opened: '#f0b040' },
+  matrix: { background: '#04111b', accent: '#2ea7db', hover: '#7fb3c4', rule: '#26566e', alarm: '#e0303a', tip: '#0c2435', text: '#d8f0f8', muted: '#7fb3c4', merged: '#78d8c0', opened: '#f0b040' },
   night: { background: '#1e1e2e', accent: '#89b4fa', merged: 'green', opened: 'yellow' },
   forest: { background: '#1b2b22', accent: '#8fd694', merged: 'green', opened: 'yellow' },
   ember: { background: '#2b1d16', accent: '#f5a97f', merged: 'green', opened: 'yellow' },
@@ -105,6 +105,25 @@ async function loadGit($: EngineInterface, cwd: string | null | undefined): Prom
   } catch {
     return null
   }
+}
+
+async function ask($: EngineInterface, text: string, done: string) {
+  try {
+    await $.prompt.submit({ text })
+    $.ui.toast(done)
+  } catch {
+    $.ui.toast('The session could not be asked')
+  }
+}
+
+function askRebase($: EngineInterface, mr: Mr) {
+  return ask($, `Rebase la MR ${mr.label} (${mr.url}) sur sa branche cible : GitLab la signale en need rebase.`,
+    `Asked the session to rebase ${mr.label}`)
+}
+
+function askPipeline($: EngineInterface, mr: Mr) {
+  return ask($, `Le pipeline de la MR ${mr.label} (${mr.url}) est en échec : regarde pourquoi et propose un correctif.`,
+    `Asked the session to look into the pipeline of ${mr.label}`)
 }
 
 async function compact($: EngineInterface) {
@@ -525,21 +544,42 @@ export const register: Register = on => {
       text: ` · ${LIMIT_NAMES[limit.kind] ?? limit.kind} ${Math.round(limit.percentUsed)}%${limit.resetsAt ? ` ↺${clockOf(limit.resetsAt)}` : ''}`,
       hot: limit.percentUsed >= 85,
     }))
+    const tipBackground = colors.tip ?? 'gray'
+    const tipColor = colors.tip ? colors.text : 'black'
+    const tooltip = (scope: string, text: string, spot: { top: number; left?: number; right?: number }) => (
+      <Box key={`${scope}-card`} position="absolute" {...spot} display="none" hover={{ scope, display: 'flex' }}
+        backgroundColor={tipBackground} paddingX={1}>
+        <Text color={tipColor}>{text}</Text>
+      </Box>
+    )
     const contextLine = session && (
-      <Box key="context" flexDirection="row" gap={1}>
-        <Box key="context-text" flexGrow={1} flexShrink={1}>
-          <Text wrap="truncate-end">
-            <Text bold color={colors.accent}>CTX </Text>
-            <Text bold color={level}>{percent === null ? '?' : `${Math.round(percent)}%`} </Text>
-            <Text color={level}>{gauge(percent ?? 0, Math.max(4, Math.min(20, width - 50)))}</Text>
-            {session.tokens !== null && (
-              <Text {...muted}> {Math.round(session.tokens / 1000)}k/{Math.round(session.window / 1000)}k</Text>
-            )}
-            {session.usd !== null && <Text {...muted}> · ${session.usd.toFixed(2)}</Text>}
-            {limits.map(limit => <Text key={`limit-${limit.key}`} color={limit.hot ? alarm : colors.text}>{limit.text}</Text>)}
-          </Text>
+      <Box key="context" flexDirection="column">
+        <Box key="context-row" flexDirection="row" gap={1}>
+          <Box key="context-text" flexGrow={1} flexShrink={1} hover={{ scope: 'context-tip' }}>
+            <Text wrap="truncate-end">
+              <Text bold color={colors.accent}>CTX </Text>
+              <Text bold color={level}>{percent === null ? '?' : `${Math.round(percent)}%`} </Text>
+              <Text color={level}>{gauge(percent ?? 0, Math.max(4, Math.min(30, width - 20)))}</Text>
+              {session.usd !== null && <Text {...muted}> · ${session.usd.toFixed(2)}</Text>}
+            </Text>
+          </Box>
+          <Box key="compact-zone">
+            <Button key="compact" plain label="⇣" onPress={() => compact($)}
+              hover={{ ...hovered(colors).hover, scope: 'compact-tip' }} />
+          </Box>
         </Box>
-        <Button key="compact" plain label="⇣ compact" onPress={() => compact($)} {...hovered(colors)} />
+        {session.tokens !== null && tooltip('context-tip',
+          `${Math.round(session.tokens / 1000)}k / ${Math.round(session.window / 1000)}k tokens`, { top: 1, left: 0 })}
+        {tooltip('compact-tip', 'Compact the conversation', { top: 1, right: 0 })}
+        {limits.length > 0 && (
+          <Text key="limits" wrap="truncate-end">
+            {limits.map((limit, index) => (
+              <Text key={`limit-${limit.key}`} color={limit.hot ? alarm : colors.text}>
+                {index === 0 ? limit.text.slice(3) : limit.text}
+              </Text>
+            ))}
+          </Text>
+        )}
       </Box>
     )
     const gitLine = repo && (
@@ -609,12 +649,24 @@ export const register: Register = on => {
           {(mr.comments ?? 0) > 0 && <Text {...muted}>{' · '}{mr.comments} comment{mr.comments === 1 ? '' : 's'}</Text>}
         </Text>
         {mr.title && <Text {...muted} wrap="truncate-end">   {mr.title}</Text>}
+        {mr.state === 'opened' && (mr.merge_status === 'need_rebase' || mr.pipeline === 'failed') && (
+          <Box key={`${mr.url}-actions`} flexDirection="row" gap={2} paddingLeft={3}>
+            {mr.merge_status === 'need_rebase' && (
+              <Button key={`rebase-${mr.url}`} plain dimColor label="⟲ ask to rebase" onPress={() => askRebase($, mr)}
+                {...hovered(colors)} />
+            )}
+            {mr.pipeline === 'failed' && (
+              <Button key={`pipeline-${mr.url}`} plain dimColor label="⌕ ask why the pipeline failed"
+                onPress={() => askPipeline($, mr)} {...hovered(colors)} />
+            )}
+          </Box>
+        )}
       </Box>
     )
     const mrGroups: [string, string, Mr[]][] = [
       ['mr-open', 'OPEN', mrs.filter(mr => mr.state === 'opened')],
-      ['mr-fresh', 'MERGED THIS TURN', mrs.filter(mr => mr.state === 'merged' && mr.fresh)],
-      ['mr-merged', 'MERGED', mrs.filter(mr => mr.state === 'merged' && !mr.fresh)],
+      ['mr-fresh', 'MERGED THIS TURN', mrs.filter(mr => mr.state === 'merged' && mr.fresh).reverse()],
+      ['mr-merged', 'MERGED', mrs.filter(mr => mr.state === 'merged' && !mr.fresh).reverse()],
       ['mr-closed', 'CLOSED', mrs.filter(mr => mr.state !== 'opened' && mr.state !== 'merged')],
     ]
     const mrTab = () => mrs.length === 0
