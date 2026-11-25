@@ -508,7 +508,9 @@ export const register: Register = on => {
           <Box key={`${id}-head`} flexDirection="row">
             <Button key={`fold-${id}`} plain label={label} onPress={() => fold($, id)}
               hover={{ color: colors.accent, bold: true }} />
-            <Text {...rule}>{'─'.repeat(Math.max(0, width - label.length))}</Text>
+            <Box key={`${id}-rule`} flexGrow={1} flexShrink={1}>
+              <Text {...rule} wrap="truncate-end">{'─'.repeat(Math.max(0, width - label.length))}</Text>
+            </Box>
           </Box>
           {!closed && body()}
         </Box>
@@ -518,39 +520,41 @@ export const register: Register = on => {
 
     const percent = session?.percent ?? null
     const level = percent === null ? colors.text : percent >= 85 ? alarm : percent >= 60 ? colors.opened : colors.accent
+    const limits = (session?.limits ?? []).map(limit => ({
+      key: limit.kind,
+      text: ` · ${LIMIT_NAMES[limit.kind] ?? limit.kind} ${Math.round(limit.percentUsed)}%${limit.resetsAt ? ` ↺${clockOf(limit.resetsAt)}` : ''}`,
+      hot: limit.percentUsed >= 85,
+    }))
     const contextLine = session && (
       <Box key="context" flexDirection="row" gap={1}>
-        <Text bold color={colors.accent}>CTX</Text>
-        <Text bold color={level}>{percent === null ? '?' : `${Math.round(percent)}%`}</Text>
-        <Text color={level}>{gauge(percent ?? 0, 20)}</Text>
-        {session.tokens !== null && (
-          <Text {...muted}>{Math.round(session.tokens / 1000)}k/{Math.round(session.window / 1000)}k</Text>
-        )}
-        {session.usd !== null && <Text {...muted}>· ${session.usd.toFixed(2)}</Text>}
-        {session.limits.map(limit => (
-          <Text key={`limit-${limit.kind}`} color={limit.percentUsed >= 85 ? alarm : colors.text}>
-            · {LIMIT_NAMES[limit.kind] ?? limit.kind} {Math.round(limit.percentUsed)}%
-            {limit.resetsAt ? ` ↺${clockOf(limit.resetsAt)}` : ''}
+        <Box key="context-text" flexGrow={1} flexShrink={1}>
+          <Text wrap="truncate-end">
+            <Text bold color={colors.accent}>CTX </Text>
+            <Text bold color={level}>{percent === null ? '?' : `${Math.round(percent)}%`} </Text>
+            <Text color={level}>{gauge(percent ?? 0, Math.max(4, Math.min(20, width - 50)))}</Text>
+            {session.tokens !== null && (
+              <Text {...muted}> {Math.round(session.tokens / 1000)}k/{Math.round(session.window / 1000)}k</Text>
+            )}
+            {session.usd !== null && <Text {...muted}> · ${session.usd.toFixed(2)}</Text>}
+            {limits.map(limit => <Text key={`limit-${limit.key}`} color={limit.hot ? alarm : colors.text}>{limit.text}</Text>)}
           </Text>
-        ))}
-        <Box key="compact-zone" flexGrow={1} justifyContent="flex-end">
-          <Button key="compact" plain label="⇣ compact" onPress={() => compact($)} {...hovered(colors)} />
         </Box>
+        <Button key="compact" plain label="⇣ compact" onPress={() => compact($)} {...hovered(colors)} />
       </Box>
     )
     const gitLine = repo && (
-      <Box key="git-line" flexDirection="row" gap={1}>
-        <Text bold color={colors.accent}>⎇</Text>
+      <Text key="git-line" wrap="truncate-end">
+        <Text bold color={colors.accent}>⎇ </Text>
         <Text bold color={colors.text}>{repo.branch}</Text>
-        {repo.upstream === null && <Text {...muted}>(no upstream)</Text>}
-        {repo.ahead > 0 && <Text color={colors.opened}>↑{repo.ahead}</Text>}
-        {repo.behind > 0 && <Text color={colors.opened}>↓{repo.behind}</Text>}
-        <Text {...muted}>· ✎ {repo.files.length} modified · ⇡ {repo.unpushed.length} unpushed</Text>
-      </Box>
+        {repo.upstream === null && <Text {...muted}> (no upstream)</Text>}
+        {repo.ahead > 0 && <Text color={colors.opened}> ↑{repo.ahead}</Text>}
+        {repo.behind > 0 && <Text color={colors.opened}> ↓{repo.behind}</Text>}
+        <Text {...muted}> · ✎ {repo.files.length} modified · ⇡ {repo.unpushed.length} unpushed</Text>
+      </Text>
     )
 
     const tabs = (
-      <Box key="tabs" flexDirection="row" gap={1}>
+      <Box key="tabs" flexDirection="row" flexWrap="wrap" columnGap={1}>
         {TABS.map(({ id, glyph, label }) => {
           const caption = `${glyph} ${label} ${counts[id]}`
           return id === shown
@@ -573,37 +577,37 @@ export const register: Register = on => {
             : <Text key={todo.text} color={colors.text}>○ {todo.text}</Text>))}
           {section('todo-then', 'THEN', current?.then ? 1 : 0, () => <Text {...muted}>◦ {current?.then}</Text>)}
           {section('todo-past', 'PAST', past.length, () => past.map(item => (
-            <Box key={`past-${item.text}`} flexDirection="row" gap={1}>
-              <Text {...muted} wrap="truncate-end">✓ {item.text}</Text>
-              <Text {...rule}>{age(item.at, now)}</Text>
-            </Box>
+            <Text key={`past-${item.text}`} wrap="truncate-end">
+              <Text {...rule}>{age(item.at, now).padEnd(4)}</Text>
+              <Text {...muted}>✓ {item.text}</Text>
+            </Text>
           )))}
         </Box>
       )
 
     const mrRow = (mr: Mr) => (
       <Box key={mr.url} flexDirection="column">
-        <Box flexDirection="row" gap={1}>
+        <Text wrap="truncate-end">
           <Text bold strikethrough={mr.fresh} color={ink}
             backgroundColor={mr.state === 'opened' ? colors.merged : colors.muted ?? 'gray'}>
             {' ⇗ '}<Link href={mr.url} label={mr.label} />{' '}
           </Text>
           <Text color={mrColor(mr, colors)}>
-            {mr.state === 'merged' ? '✓ merged' : mr.state === 'opened' ? 'open' : `✕ ${mr.state ?? '?'}`}
+            {' '}{mr.state === 'merged' ? '✓ merged' : mr.state === 'opened' ? 'open' : `✕ ${mr.state ?? '?'}`}
           </Text>
           {mr.state === 'opened' && mr.pipeline && (
             <Text color={mr.pipeline === 'success' ? colors.merged : mr.pipeline === 'failed' ? alarm : colors.opened}>
-              {mr.pipeline === 'success' ? '✓' : mr.pipeline === 'failed' ? '✖' : '◐'} pipeline
+              {' · '}{mr.pipeline === 'success' ? '✓' : mr.pipeline === 'failed' ? '✖' : '◐'} pipeline
               {mr.pipeline === 'success' || mr.pipeline === 'failed' ? '' : ` ${mr.pipeline}`}
             </Text>
           )}
           {mr.state === 'opened' && mr.merge_status && MERGE_WORDS[mr.merge_status] !== undefined && (
             <Text color={mr.merge_status === 'mergeable' ? colors.merged : mr.merge_status === 'conflict' ? alarm : colors.opened}>
-              · {MERGE_WORDS[mr.merge_status]}
+              {' · '}{MERGE_WORDS[mr.merge_status]}
             </Text>
           )}
-          {(mr.comments ?? 0) > 0 && <Text {...muted}>· {mr.comments} comment{mr.comments === 1 ? '' : 's'}</Text>}
-        </Box>
+          {(mr.comments ?? 0) > 0 && <Text {...muted}>{' · '}{mr.comments} comment{mr.comments === 1 ? '' : 's'}</Text>}
+        </Text>
         {mr.title && <Text {...muted} wrap="truncate-end">   {mr.title}</Text>}
       </Box>
     )
@@ -634,13 +638,13 @@ export const register: Register = on => {
           {groups.map(([id, heading, group]) => section(id, heading, group.length, () => (
             <Box key={`${id}-list`} flexDirection="column">
               {group.map(note => (
-                <Box key={note.link ?? `note-${note.title}`} flexDirection="row" gap={1}>
-                  <Text color={colors.accent}>▤</Text>
+                <Text key={note.link ?? `note-${note.title}`} wrap="truncate-end">
+                  <Text {...rule}>{age(note.at, now).padEnd(4)}</Text>
+                  <Text color={colors.accent}>▤ </Text>
                   {note.link
                     ? <Link href={note.link} label={note.title ?? '?'} />
                     : <Text color={colors.text}>{note.title ?? '?'}</Text>}
-                  <Text {...rule}>{age(note.at, now)}</Text>
-                </Box>
+                </Text>
               ))}
             </Box>
           )))}
@@ -658,16 +662,16 @@ export const register: Register = on => {
       return (
         <Box key="git" flexDirection="column" gap={1}>
           {section('git-unpushed', 'UNPUSHED', repo.unpushed.length, () => repo.unpushed.map(commit => (
-            <Box key={`commit-${commit.sha}`} flexDirection="row" gap={1}>
-              <Text color={colors.accent}>{commit.sha}</Text>
-              <Text color={colors.text} wrap="truncate-end">{commit.subject}</Text>
-            </Box>
+            <Text key={`commit-${commit.sha}`} wrap="truncate-end">
+              <Text color={colors.accent}>{commit.sha} </Text>
+              <Text color={colors.text}>{commit.subject}</Text>
+            </Text>
           )))}
           {section('git-modified', 'MODIFIED', repo.files.length, () => repo.files.map(file => (
-            <Box key={`file-${file.path}`} flexDirection="row" gap={1}>
-              <Text color={file.status === '??' ? colors.opened : colors.accent}>{file.status.padEnd(2)}</Text>
-              <Text color={colors.text} wrap="truncate-start">{file.path}</Text>
-            </Box>
+            <Text key={`file-${file.path}`} wrap="truncate-start">
+              <Text color={file.status === '??' ? colors.opened : colors.accent}>{file.status.padEnd(2)} </Text>
+              <Text color={colors.text}>{file.path}</Text>
+            </Text>
           )))}
         </Box>
       )
