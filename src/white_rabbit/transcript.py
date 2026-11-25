@@ -61,14 +61,16 @@ def output_total(sid):
     if path is None:
         return None
     cache = _read_cache(sid, path)
+    read = 0
     with open(path, "rb") as fh:
         fh.seek(cache["offset"])
-        chunk = fh.read()
-    end = chunk.rfind(b"\n") + 1
-    for line in chunk[:end].splitlines():
-        _count(cache, line.decode("utf-8", "replace"))
-    if end:
-        cache["offset"] += end
+        for line in fh:
+            if not line.endswith(b"\n"):
+                break
+            _count(cache, line.decode("utf-8", "replace"))
+            read += len(line)
+    if read:
+        cache["offset"] += read
         os.makedirs(config.data_dir(), exist_ok=True)
         tmp = _cache_path(sid) + ".tmp"
         with open(tmp, "w") as fh:
