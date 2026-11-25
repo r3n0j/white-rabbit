@@ -126,6 +126,21 @@ function askPipeline($: EngineInterface, mr: Mr) {
     `Asked the session to look into the pipeline of ${mr.label}`)
 }
 
+function askCommit($: EngineInterface, repo: Git) {
+  return ask($, `Committe les ${repo.files.length} changements en cours de la branche ${repo.branch}, `
+    + 'découpés en commits cohérents, aux conventions du repo.', 'Asked the session to commit')
+}
+
+function askPush($: EngineInterface, repo: Git) {
+  return ask($, `Pousse les ${repo.unpushed.length} commits non poussés de la branche ${repo.branch} : `
+    + 'je donne mon accord pour ce push.', 'Asked the session to push')
+}
+
+function askPull($: EngineInterface, repo: Git) {
+  return ask($, `La branche ${repo.branch} a ${repo.behind} commits de retard sur ${repo.upstream ?? 'sa branche distante'} : `
+    + 'mets-la à jour avec git pull --rebase.', 'Asked the session to pull')
+}
+
 async function compact($: EngineInterface) {
   try {
     const { skip } = await $.session.compact()
@@ -564,7 +579,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           <Box key="compact-zone">
-            <Button key="compact" plain label="⇣" onPress={() => compact($)}
+            <Button key="compact" plain label="⇊" onPress={() => compact($)}
               hover={{ ...hovered(colors).hover, scope: 'compact-tip' }} />
           </Box>
         </Box>
@@ -708,11 +723,23 @@ export const register: Register = on => {
       if (repo === null) {
         return empty('The session folder is not a git repository.')
       }
-      if (counts.git === 0) {
+      if (counts.git === 0 && repo.behind === 0) {
         return empty('Nothing to push, nothing modified.')
       }
+      const actions = [
+        repo.files.length > 0 && (
+          <Button key="git-commit" plain dimColor label="✎ ask to commit" onPress={() => askCommit($, repo)} {...hovered(colors)} />
+        ),
+        repo.unpushed.length > 0 && (
+          <Button key="git-push" plain dimColor label="⇡ ask to push" onPress={() => askPush($, repo)} {...hovered(colors)} />
+        ),
+        repo.behind > 0 && (
+          <Button key="git-pull" plain dimColor label="⇣ ask to pull" onPress={() => askPull($, repo)} {...hovered(colors)} />
+        ),
+      ].filter(Boolean)
       return (
         <Box key="git" flexDirection="column" gap={1}>
+          {actions.length > 0 && <Box key="git-actions" flexDirection="row" flexWrap="wrap" columnGap={2}>{actions}</Box>}
           {section('git-unpushed', 'UNPUSHED', repo.unpushed.length, () => repo.unpushed.map(commit => (
             <Text key={`commit-${commit.sha}`} wrap="truncate-end">
               <Text color={colors.accent}>{commit.sha} </Text>

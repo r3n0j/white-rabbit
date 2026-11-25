@@ -323,7 +323,7 @@ test('the pane shows the context, git, merge request details, note ages and past
   })
   expect(await ui.find({ type: 'Text', text: '42% ' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '84k / 200k tokens' })).toBeDefined()
-  expect((await ui.find({ key: 'compact' }))?.props.label).toBe('⇣')
+  expect((await ui.find({ key: 'compact' }))?.props.label).toBe('⇊')
   expect(await ui.find({ type: 'Text', text: /5h 62% ↺17:00/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /✎ 2 modified · ⇡ 2 unpushed/ })).toBeDefined()
   await ui.press({ key: 'compact' })
@@ -349,5 +349,12 @@ test('the pane shows the context, git, merge request details, note ages and past
   await ui.press({ key: 'tab-git' })
   expect(await ui.find({ type: 'Text', text: 'feat: x' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'src/a.py' })).toBeDefined()
+  await ui.press({ key: 'git-commit' })
+  await ui.press({ key: 'git-push' })
+  expect(await ui.find({ key: 'git-pull' })).toBeUndefined()
+  expect(asked.slice(2)).toEqual([
+    'Committe les 2 changements en cours de la branche develop, découpés en commits cohérents, aux conventions du repo.',
+    'Pousse les 2 commits non poussés de la branche develop : je donne mon accord pour ce push.',
+  ])
   await ui.unmount()
 })
