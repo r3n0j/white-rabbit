@@ -77,9 +77,9 @@ class StatuslineTest(RegistryCase):
         view = statusline.session_view(data)
         self.assertEqual(view["mrs"], [
             {"label": "atlas-api!189", "url": MR1, "state": "opened", "title": None, "fresh": False,
-             "pipeline": "failed", "merge_status": "need_rebase", "comments": 2},
+             "pipeline": "failed", "merge_status": "need_rebase", "comments": 2, "merged_at": None},
             {"label": "ops!77", "url": MR2, "state": "merged", "title": None, "fresh": True,
-             "pipeline": None, "merge_status": None, "comments": None},
+             "pipeline": None, "merge_status": None, "comments": None, "merged_at": None},
         ])
         self.assertEqual(view["counts"], {"merged": 1, "to_merge": 1})
         self.assertEqual([(n["title"], n["action"]) for n in view["notes"]],

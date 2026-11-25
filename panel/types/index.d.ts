@@ -7,6 +7,7 @@ export type Mr = {
   pipeline?: string | null
   merge_status?: string | null
   comments?: number | null
+  merged_at?: string | null
 }
 export type Note = { title: string | null; action: string | null; link: string | null; at?: string | null }
 export type Todo = { text: string; next: boolean }

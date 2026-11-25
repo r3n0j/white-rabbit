@@ -144,7 +144,8 @@ def session_view(data):
     return {
         "mrs": [{"label": _mr_label(mr), "url": mr["url"], "state": mr.get("state"), "title": mr.get("title"),
                  "fresh": mr["url"] in fresh, "pipeline": mr.get("pipeline"),
-                 "merge_status": mr.get("detailed_merge_status"), "comments": mr.get("user_notes_count")}
+                 "merge_status": mr.get("detailed_merge_status"), "comments": mr.get("user_notes_count"),
+                 "merged_at": mr.get("merged_at")}
                 for mr in data.get("mrs", [])],
         "counts": {"merged": merged, "to_merge": to_merge},
         "notes": [{"title": n.get("title"), "action": n.get("action"), "link": registry.note_link(n["path"]),

@@ -387,7 +387,7 @@ def purge(max_age_days=PURGE_AGE_DAYS):
 
 
 def _stale(mr, now):
-    if mr.get("state") == "merged":
+    if mr.get("state") == "merged" and (mr.get("merged_at") or mr.get("merged_at_missing") or "project" not in mr):
         return False
     checked = mr.get("checked_at")
     return checked is None or now - checked >= REFRESH_TTL
@@ -435,6 +435,8 @@ def refresh(sid, timeout=GLAB_TIMEOUT):
                 if mr.get("url") in results:
                     if "project" in mr:
                         mr.update({k: v for k, v in results[mr["url"]].items() if v is not None})
+                        if mr.get("state") == "merged" and not mr.get("merged_at"):
+                            mr["merged_at_missing"] = True
                     elif results[mr["url"]].get("state"):
                         mr["state"] = results[mr["url"]]["state"]
                     mr["checked_at"] = now

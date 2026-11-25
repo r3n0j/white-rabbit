@@ -5,7 +5,7 @@ import re
 import subprocess
 import urllib.parse
 
-FIELDS = ("state", "title", "source_branch", "target_branch", "detailed_merge_status", "user_notes_count")
+FIELDS = ("state", "title", "source_branch", "target_branch", "detailed_merge_status", "user_notes_count", "merged_at")
 SEGMENTS = re.compile(r"&&|\|\||[;|\n]")
 ASSIGNMENT = re.compile(r"^\w+=")
 GIT_OPTIONS_WITH_VALUE = ("-C", "-c")

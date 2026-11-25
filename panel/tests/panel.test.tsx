@@ -270,7 +270,8 @@ test('the footer holds the rabbit button by default and Nebuchadnezzar when matr
 test('the MR tab splits open, merged this turn and merged earlier, each section folding on its header', async ($, on) => {
   panes(on)
   const old = { label: 'ops!1', url: 'https://gitlab.com/g/ops/-/merge_requests/1', state: 'merged', title: null, fresh: false }
-  const older = { ...old, label: 'ops!0', url: 'https://gitlab.com/g/ops/-/merge_requests/0' }
+  const older = { ...old, label: 'ops!0', url: 'https://gitlab.com/g/ops/-/merge_requests/0', merged_at: '2026-11-25T12:00:00Z' }
+  Object.assign(old, { merged_at: '2026-11-24T09:30:00Z' })
   on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, mrs: [older, ...VIEW.mrs, old] }), stderr: '' } }))
   await $.command.run({ command: 'rabbit', args: '' })
   const ui = await $.ui.mount({
@@ -285,7 +286,8 @@ test('the MR tab splits open, merged this turn and merged earlier, each section 
 
   await ui.press({ key: 'fold-mr-merged' })
   const merged = await ui.findAll({ type: 'Link', text: /^ops!\d$/ })
-  expect(merged.map(link => link.text)).toEqual(['ops!3', 'ops!1', 'ops!0'])
+  expect(merged.map(link => link.text)).toEqual(['ops!3', 'ops!0', 'ops!1'])
+  expect(await ui.find({ type: 'Text', text: /✓ merged 2[45]\/11 \d\d:\d\d/ })).toBeDefined()
   await ui.press({ key: 'fold-mr-open' })
   expect(await ui.find({ type: 'Link', text: 'ops!3' })).toBeUndefined()
   expect(kept.get('folds')).toEqual({ 'mr-merged': false, 'mr-open': true })

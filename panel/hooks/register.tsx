@@ -340,6 +340,21 @@ function clockOf(at: string | null) {
     : ''
 }
 
+function stamp(at: string | null | undefined) {
+  const time = at ? new Date(at) : null
+  if (!time || Number.isNaN(time.getTime())) {
+    return ''
+  }
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `${two(time.getDate())}/${two(time.getMonth() + 1)} ${two(time.getHours())}:${two(time.getMinutes())}`
+}
+
+function newestMergeFirst(mrs: Mr[]) {
+  return mrs.map((mr, index) => ({ mr, index }))
+    .sort((a, b) => (Date.parse(b.mr.merged_at ?? '') || 0) - (Date.parse(a.mr.merged_at ?? '') || 0) || b.index - a.index)
+    .map(({ mr }) => mr)
+}
+
 function gauge(percent: number, cells: number) {
   const full = Math.round((Math.min(100, Math.max(0, percent)) / 100) * cells)
   return '▰'.repeat(full) + '▱'.repeat(cells - full)
@@ -649,6 +664,7 @@ export const register: Register = on => {
           </Text>
           <Text color={mrColor(mr, colors)}>
             {' '}{mr.state === 'merged' ? '✓ merged' : mr.state === 'opened' ? 'open' : `✕ ${mr.state ?? '?'}`}
+            {mr.state === 'merged' && stamp(mr.merged_at) ? ` ${stamp(mr.merged_at)}` : ''}
           </Text>
           {mr.state === 'opened' && mr.pipeline && (
             <Text color={mr.pipeline === 'success' ? colors.merged : mr.pipeline === 'failed' ? alarm : colors.opened}>
@@ -680,8 +696,8 @@ export const register: Register = on => {
     )
     const mrGroups: [string, string, Mr[]][] = [
       ['mr-open', 'OPEN', mrs.filter(mr => mr.state === 'opened')],
-      ['mr-fresh', 'MERGED THIS TURN', mrs.filter(mr => mr.state === 'merged' && mr.fresh).reverse()],
-      ['mr-merged', 'MERGED', mrs.filter(mr => mr.state === 'merged' && !mr.fresh).reverse()],
+      ['mr-fresh', 'MERGED THIS TURN', newestMergeFirst(mrs.filter(mr => mr.state === 'merged' && mr.fresh))],
+      ['mr-merged', 'MERGED', newestMergeFirst(mrs.filter(mr => mr.state === 'merged' && !mr.fresh))],
       ['mr-closed', 'CLOSED', mrs.filter(mr => mr.state !== 'opened' && mr.state !== 'merged')],
     ]
     const mrTab = () => mrs.length === 0

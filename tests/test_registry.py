@@ -314,6 +314,19 @@ class RefreshTest(GlabStubCase):
             reg.REFRESH_TTL = 120
         self.assertEqual(reg.load(SID)["mrs"][0]["state"], "merged")
 
+    def test_a_merged_mr_without_its_merge_date_is_fetched_once_more(self):
+        reg.add_mr(SID, MR1)
+        self.respond({"189": {"state": "merged"}})
+        reg.refresh(SID)
+        data = reg.load(SID)
+        del data["mrs"][0]["merged_at_missing"]
+        data["mrs"][0]["checked_at"] = 0
+        reg._write(data)
+        self.respond({"189": {"state": "merged", "merged_at": "2026-11-25T10:00:00.000Z"}})
+        reg.refresh(SID)
+        self.assertEqual(reg.load(SID)["mrs"][0]["merged_at"], "2026-11-25T10:00:00.000Z")
+        self.assertFalse(reg.needs_refresh(SID))
+
     def test_failure_keeps_previous_state(self):
         reg.add_mr(SID, MR1)
         self.respond({})
