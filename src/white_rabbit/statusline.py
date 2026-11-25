@@ -133,8 +133,9 @@ def statusline_lines(data):
 
 def session_view(data):
     """Vue complète de la session pour un panneau : toutes les MR (libellé, état, mergée depuis
-    la dernière réponse), les compteurs, les notes créées puis modifiées (les plus récentes
-    d'abord, avec leur lien), la ToDo visible et la suite proposée."""
+    la dernière réponse, pipeline, statut de merge, commentaires), les compteurs, les notes créées
+    puis modifiées (les plus récentes d'abord, avec leur lien et leur heure), la ToDo visible, la
+    suite proposée, les actions sorties de la ToDo et le dossier de la session."""
     fresh = {mr.get("url") for mr in registry.fresh_merged(data)}
     merged, to_merge = registry.mr_counts(data)
     notes = registry.visible_notes(data)
@@ -142,12 +143,16 @@ def session_view(data):
                + _recent_first([n for n in notes if n.get("action") != "created"]))
     return {
         "mrs": [{"label": _mr_label(mr), "url": mr["url"], "state": mr.get("state"), "title": mr.get("title"),
-                 "fresh": mr["url"] in fresh} for mr in data.get("mrs", [])],
+                 "fresh": mr["url"] in fresh, "pipeline": mr.get("pipeline"),
+                 "merge_status": mr.get("detailed_merge_status"), "comments": mr.get("user_notes_count")}
+                for mr in data.get("mrs", [])],
         "counts": {"merged": merged, "to_merge": to_merge},
-        "notes": [{"title": n.get("title"), "action": n.get("action"), "link": registry.note_link(n["path"])}
-                  for n in ordered],
+        "notes": [{"title": n.get("title"), "action": n.get("action"), "link": registry.note_link(n["path"]),
+                   "at": n.get("last_written")} for n in ordered],
         "todos": [{"text": t["text"], "next": bool(t.get("next"))} for t in registry.visible_todos(data)],
         "then": registry.then_item(data),
+        "past": [{"text": t["text"], "at": t.get("at")} for t in data.get("past_todos") or [] if isinstance(t, dict)],
+        "cwd": data.get("cwd"),
         "display": config.settings()["display"]["summary"],
     }
 

@@ -5,7 +5,7 @@ import re
 import subprocess
 import urllib.parse
 
-FIELDS = ("state", "title", "source_branch", "target_branch")
+FIELDS = ("state", "title", "source_branch", "target_branch", "detailed_merge_status", "user_notes_count")
 SEGMENTS = re.compile(r"&&|\|\||[;|\n]")
 ASSIGNMENT = re.compile(r"^\w+=")
 GIT_OPTIONS_WITH_VALUE = ("-C", "-c")
@@ -63,4 +63,6 @@ class GitLab:
         command = [self.glab, "api", endpoint] + ([] if host == "gitlab.com" else ["--hostname", host])
         out = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=True)
         body = json.loads(out.stdout)
-        return {key: body.get(key) for key in FIELDS}
+        fields = {key: body.get(key) for key in FIELDS}
+        fields["pipeline"] = (body.get("head_pipeline") or {}).get("status")
+        return fields

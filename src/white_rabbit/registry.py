@@ -16,6 +16,7 @@ import time
 from white_rabbit import adapters, config
 
 REFRESH_TTL = 120
+PAST_TODOS = 20
 GLAB_TIMEOUT = 5
 PURGE_AGE_DAYS = 30
 SAFE_SID = re.compile(r"^[\w-]+$")
@@ -290,6 +291,12 @@ def set_todo_items(sid, labels, cwd=None):
                 item["mrs"] = mrs
         if data.get("todos") == todos and data.get("then") == then:
             return False
+        kept = {item["text"] for item in todos}
+        left = [{"text": item["text"], "at": _now()} for item in data.get("todos") or []
+                if isinstance(item, dict) and item.get("text") not in kept]
+        past = [item for item in data.get("past_todos") or [] if isinstance(item, dict)
+                and item.get("text") not in kept and item.get("text") not in {x["text"] for x in left}]
+        data["past_todos"] = (left + past)[:PAST_TODOS]
         data["todos"] = todos
         data["then"] = then
         data["todos_updated"] = _now()

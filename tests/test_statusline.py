@@ -73,10 +73,13 @@ class StatuslineTest(RegistryCase):
         reg.set_todo_items(SID, ["[next] Relire !189", "Pousser", "[then] Lot B"])
         data = reg.load(SID)
         data["mrs"][1]["state"] = "merged"
+        data["mrs"][0].update(pipeline="failed", detailed_merge_status="need_rebase", user_notes_count=2)
         view = statusline.session_view(data)
         self.assertEqual(view["mrs"], [
-            {"label": "atlas-api!189", "url": MR1, "state": "opened", "title": None, "fresh": False},
-            {"label": "ops!77", "url": MR2, "state": "merged", "title": None, "fresh": True},
+            {"label": "atlas-api!189", "url": MR1, "state": "opened", "title": None, "fresh": False,
+             "pipeline": "failed", "merge_status": "need_rebase", "comments": 2},
+            {"label": "ops!77", "url": MR2, "state": "merged", "title": None, "fresh": True,
+             "pipeline": None, "merge_status": None, "comments": None},
         ])
         self.assertEqual(view["counts"], {"merged": 1, "to_merge": 1})
         self.assertEqual([(n["title"], n["action"]) for n in view["notes"]],
@@ -84,6 +87,8 @@ class StatuslineTest(RegistryCase):
         self.assertEqual(view["notes"][0]["link"], reg.note_link(self.note("B. Areas", "plan.md")))
         self.assertEqual(view["todos"], [{"text": "Relire !189", "next": True}, {"text": "Pousser", "next": False}])
         self.assertEqual(view["then"], "Lot B")
+        self.assertTrue(view["notes"][0]["at"])
+        self.assertEqual(view["past"], [])
 
     def test_statusline_lines_only_notes(self):
         reg.add_note(SID, self.note("B. Areas", "n.md"), True)

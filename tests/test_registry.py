@@ -455,6 +455,39 @@ class RefreshAllTest(GlabStubCase):
         self.assertTrue(popen.call_args.kwargs.get("start_new_session"))
 
 
+class PastTodosTest(RegistryCase):
+    def test_actions_leaving_the_list_are_kept_newest_first(self):
+        reg.set_todo_items(SID, ["[next] A", "B", "C"])
+        reg.set_todo_items(SID, ["[next] B"])
+        reg.set_todo_items(SID, ["[next] D"])
+        past = reg.load(SID)["past_todos"]
+        self.assertEqual([item["text"] for item in past], ["B", "A", "C"])
+        self.assertTrue(all(item["at"] for item in past))
+
+    def test_an_action_coming_back_leaves_the_past(self):
+        reg.set_todo_items(SID, ["[next] A"])
+        reg.set_todo_items(SID, ["[next] B"])
+        reg.set_todo_items(SID, ["[next] A"])
+        self.assertEqual([item["text"] for item in reg.load(SID)["past_todos"]], ["B"])
+
+    def test_the_past_is_capped(self):
+        for n in range(reg.PAST_TODOS + 5):
+            reg.set_todo_items(SID, ["[next] action %d" % n])
+        self.assertEqual(len(reg.load(SID)["past_todos"]), reg.PAST_TODOS)
+
+
+class FetchStateTest(unittest.TestCase):
+    def test_reads_the_pipeline_merge_status_and_comments(self):
+        body = {"state": "opened", "title": "t", "source_branch": "s", "target_branch": "d",
+                "detailed_merge_status": "not_approved", "user_notes_count": 3,
+                "head_pipeline": {"status": "running"}}
+        done = mock.Mock(stdout=json.dumps(body))
+        with mock.patch("subprocess.run", return_value=done):
+            result = adapters.gitlab().fetch_state("https://gitlab.com/g/p/-/merge_requests/1", 10)
+        self.assertEqual((result["pipeline"], result["detailed_merge_status"], result["user_notes_count"]),
+                         ("running", "not_approved", 3))
+
+
 @unittest.skipUnless(os.environ.get("SESSION_REGISTRY_CONTRACT_MR"), "contrôle de contrat glab réel")
 class GlabContractTest(unittest.TestCase):
     def test_real_glab_api_returns_expected_fields(self):
