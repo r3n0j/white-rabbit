@@ -9,15 +9,15 @@ const REFRESH_MS = 20_000
 
 const view = atom({ plugin: 'white-rabbit-panel', key: 'view' } as const, null)
 const announced = atom({ plugin: 'white-rabbit-panel', key: 'announced' } as const, [])
-const placement = atom({ plugin: 'white-rabbit-panel', key: 'placement' } as const, 'band')
+const placement = atom({ plugin: 'white-rabbit-panel', key: 'placement' } as const, 'mode')
 const palette = atom({ plugin: 'white-rabbit-panel', key: 'palette' } as const, 'default')
 const neb = atom({ plugin: 'white-rabbit-panel', key: 'neb' } as const, false)
 
-type Colors = { background?: string; accent: string; text?: string; muted?: string; merged: string; opened: string }
+type Colors = { background?: string; accent: string; hover?: string; text?: string; muted?: string; merged: string; opened: string }
 
 const PALETTES: Record<Palette, Colors> = {
   default: { accent: 'cyan', merged: 'green', opened: 'yellow' },
-  matrix: { background: '#04111b', accent: '#2ea7db', text: '#d8f0f8', muted: '#7fb3c4', merged: '#78d8c0', opened: '#f0b040' },
+  matrix: { background: '#04111b', accent: '#2ea7db', hover: '#7fb3c4', text: '#d8f0f8', muted: '#7fb3c4', merged: '#78d8c0', opened: '#f0b040' },
   night: { background: '#1e1e2e', accent: '#89b4fa', merged: 'green', opened: 'yellow' },
   forest: { background: '#1b2b22', accent: '#8fd694', merged: 'green', opened: 'yellow' },
   ember: { background: '#2b1d16', accent: '#f5a97f', merged: 'green', opened: 'yellow' },
@@ -178,6 +178,14 @@ function mrColor(mr: Mr, colors: Colors) {
   return undefined
 }
 
+function hovered(colors: Colors) {
+  return colors.hover ? { hover: { color: colors.hover, bold: true } } : {}
+}
+
+async function lit($: EngineInterface) {
+  return hovered(PALETTES[await read($, palette)])
+}
+
 function secondary(colors: Colors) {
   return colors.muted ? { color: colors.muted } : { dimColor: true }
 }
@@ -219,23 +227,28 @@ export const register: Register = on => {
       return next(e)
     }
     const { Box, Button, Text } = $.ui.resolve(e)
+    const hover = await lit($)
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box key="hint" flexDirection="row" gap={1}>
         <Text dimColor wrap="truncate-end">{e.props.hint}</Text>
-        <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} />
+        <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} {...hover} />
       </Box>
     )
   })
 
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
-    if (await read($, placement) !== 'mode') {
+    const inMode = await read($, placement) === 'mode'
+    const withNeb = await read($, neb)
+    if (!inMode && !withNeb) {
       return next(e)
     }
     const { Box, Button, Text } = $.ui.resolve(e)
+    const hover = await lit($)
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box key="mode" flexDirection="row" gap={1}>
         {e.props.modes.length > 0 && <Text dimColor>{e.props.modes.join(' & ')}</Text>}
-        <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} />
+        {inMode && <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} {...hover} />}
+        {withNeb && <Button key="neb" plain dimColor label="⇱ Nebuchadnezzar" onPress={() => openNeb($)} {...hover} />}
       </Box>
     )
   })
@@ -245,10 +258,11 @@ export const register: Register = on => {
       return next(e)
     }
     const { Box, Button, Text } = $.ui.resolve(e)
+    const hover = await lit($)
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box key="turn" flexDirection="row" gap={1}>
         <Text dimColor>{e.props.word} for {formatDuration(e.props.durationMs)}</Text>
-        <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} />
+        <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} {...hover} />
       </Box>
     )
   })
@@ -263,7 +277,7 @@ export const register: Register = on => {
     const colors = PALETTES[await read($, palette)]
     const muted = secondary(colors)
     const { Box, Button, Link, Text } = $.ui.resolve(e)
-    const button = inBand && <Button key="open" plain label="◧ rabbit" onPress={() => toggle($)} />
+    const button = inBand && <Button key="open" plain label="◧ rabbit" onPress={() => toggle($)} {...hovered(colors)} />
     if (summary === null) {
       return <Box flexDirection="row">{button}</Box>
     }
@@ -312,7 +326,7 @@ export const register: Register = on => {
     ].filter(Boolean)
 
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box key="band" flexDirection="row" gap={1}>
         {button}
         <Box flexDirection="column">{rows}</Box>
       </Box>
@@ -324,13 +338,7 @@ export const register: Register = on => {
     const colors = PALETTES[await read($, palette)]
     const { background, accent } = colors
     const muted = secondary(colors)
-    const withNeb = await read($, neb)
-    const { Box, Button, Link, Text } = $.ui.resolve(e)
-    const nebButton = withNeb && (
-      <Box key="neb-row" flexDirection="column" flexGrow={1} justifyContent="flex-end">
-        <Button key="neb" label="⇱ Nebuchadnezzar" onPress={() => openNeb($)} />
-      </Box>
-    )
+    const { Box, Link, Text } = $.ui.resolve(e)
     const frame = {
       flexDirection: 'column' as const,
       gap: 1,
@@ -340,7 +348,7 @@ export const register: Register = on => {
       backgroundColor: background,
     }
     if (isEmpty(current) || current === null) {
-      return <Box key="body" {...frame}><Text {...muted}>Nothing left behind by this session yet.</Text>{nebButton}</Box>
+      return <Box key="body" {...frame}><Text {...muted}>Nothing left behind by this session yet.</Text></Box>
     }
     const created = current.notes.filter(note => note.action === 'created')
     const modified = current.notes.filter(note => note.action !== 'created')
@@ -382,7 +390,6 @@ export const register: Register = on => {
             {current.then && <Text {...muted}>◦ {current.then}</Text>}
           </Box>
         )}
-        {nebButton}
       </Box>
     )
   })

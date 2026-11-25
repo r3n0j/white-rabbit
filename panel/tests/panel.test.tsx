@@ -51,6 +51,7 @@ const BAND = {
 test('the band summarises the session and its button toggles the pane', async ($, on) => {
   const open = panes(on)
   on('process.run', async (_, e) => ({ value: { exitCode: 0, stdout: e.argv[1] === 'view' ? JSON.stringify(VIEW) : '', stderr: '' } }))
+  await $.command.run({ command: 'rabbit', args: 'place band' })
   await $.command.run({ command: 'rabbit', args: '' })
   expect([...open]).toEqual(['white-rabbit'])
 
@@ -75,6 +76,7 @@ test('the band summarises the session and its button toggles the pane', async ($
 test('the button reopens a pane closed behind its back', async ($, on) => {
   const open = panes(on)
   on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify(VIEW), stderr: '' } }))
+  await $.command.run({ command: 'rabbit', args: 'place band' })
   await $.command.run({ command: 'rabbit', args: '' })
   open.delete('white-rabbit')
   const band = await $.ui.mount({ plugin: 'white-rabbit-panel', surface: 'terminal', ...BAND })
@@ -161,10 +163,10 @@ test('/rabbit place and /rabbit color cycle without an argument', async ($, on) 
   on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify(VIEW), stderr: '' } }))
   const said = async (args: string) => ((await $.command.run({ command: 'rabbit', args })) as { text: string }).text
 
-  expect(await said('place')).toMatch(/\(hint\)/)
-  expect(await said('place')).toMatch(/\(mode\)/)
-  expect(await said('place turn')).toMatch(/\(turn\)/)
+  expect(await said('place')).toMatch(/\(turn\)/)
   expect(await said('place')).toMatch(/\(band\)/)
+  expect(await said('place hint')).toMatch(/\(hint\)/)
+  expect(await said('place')).toMatch(/\(mode\)/)
   expect(await said('place nowhere')).toMatch(/Unknown place/)
 
   expect(await said('color')).toBe('Rabbit pane painted matrix.')
@@ -190,6 +192,7 @@ test('/rabbit display moves MR, notes and next between the statusline, the band 
     if (e.argv[1] === 'config') shown = e.argv[4] ?? shown
     return { value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, display: shown }), stderr: '' } }
   })
+  await $.command.run({ command: 'rabbit', args: 'place band' })
   await $.command.run({ command: 'rabbit', args: '' })
   await $.command.run({ command: 'rabbit', args: '' })
   const said = async (args: string) => ((await $.command.run({ command: 'rabbit', args })) as { text: string }).text
@@ -219,7 +222,7 @@ test('the button place and the palette are kept in the store', async ($, on) => 
   expect(kept.get('palette')).toBe('matrix')
 })
 
-test('the pane offers a neb button when matrix is installed', async ($, on) => {
+test('the footer holds the rabbit button by default and Nebuchadnezzar when matrix is installed', async ($, on) => {
   panes(on)
   const calls: string[][] = []
   on('process.run', async (_, e) => {
@@ -230,12 +233,23 @@ test('the pane offers a neb button when matrix is installed', async ($, on) => {
   on('clock.every', async () => ({ value: undefined }))
   on('session.start', async (_, e) => ({ cwd: e.cwd }))
   await $.session.start({ source: 'startup', cwd: '/tmp' } as never)
-  const ui = await $.ui.mount({
+  await $.command.run({ command: 'rabbit', args: 'color matrix' })
+  const footer = { component: 'SessionMode', props: { modes: [] } } as const
+  const ui = await $.ui.mount({ plugin: 'white-rabbit-panel', surface: 'terminal', ...footer } as never)
+  expect(await ui.find({ key: 'open' })).toBeDefined()
+  await ui.press({ key: 'neb' })
+  expect(calls).toContainEqual(['matrix', 'focus', 'neb', '--raise'])
+  await ui.unmount()
+
+  await $.command.run({ command: 'rabbit', args: 'place band' })
+  const after = await $.ui.mount({ plugin: 'white-rabbit-panel', surface: 'terminal', ...footer } as never)
+  expect(await after.find({ key: 'open' })).toBeUndefined()
+  expect(await after.find({ key: 'neb' })).toBeDefined()
+  await after.unmount()
+  const pane = await $.ui.mount({
     plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit',
     props: PANE_PROPS as never,
   })
-  await ui.press({ key: 'neb' })
-  expect(calls).toContainEqual(['matrix', 'focus', 'neb', '--raise'])
-  expect(await ui.find({ key: 'close' })).toBeUndefined()
-  await ui.unmount()
+  expect(await pane.find({ key: 'neb' })).toBeUndefined()
+  await pane.unmount()
 })

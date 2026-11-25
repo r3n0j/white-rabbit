@@ -209,11 +209,12 @@ A session reads it when it starts; a running one picks it up once resumed.
 
     /rabbit                              show or hide the pane
     /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
-    /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits
+    /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits (mode: right of the prompt footer)
     /rabbit color [default|matrix|night|forest|ember]  the pane's palette
 
 Without an argument each one moves to the next choice; every choice is kept across sessions.
-With matrix installed, the pane ends with a `⇱ Nebuchadnezzar` button that brings neb to the front.
+With matrix installed, a `⇱ Nebuchadnezzar` button at the right of the prompt footer brings neb to the front.
+With the `matrix` palette, the buttons light up in neb's label colour under the pointer.
 `panel/themes/matrix.json` adds a Claude Code theme in neb's colours, `Matrix (neb)` in `/theme`:
 with it the pane's frame matches the `matrix` palette.
 Tests: `claude plugin test panel`.
