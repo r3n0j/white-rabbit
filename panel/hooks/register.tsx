@@ -22,6 +22,20 @@ const folds = atom({ plugin: 'white-rabbit-panel', key: 'folds' } as const, {})
 const git = atom({ plugin: 'white-rabbit-panel', key: 'git' } as const, null)
 const usage = atom({ plugin: 'white-rabbit-panel', key: 'usage' } as const, null)
 const FOLDED_BY_DEFAULT = ['mr-merged', 'mr-closed', 'todo-past']
+const SECTION_GLYPHS: Record<string, string> = {
+  'todo-next': '▸',
+  'todo-then': '◦',
+  'todo-past': '✓',
+  'mr-open': '●',
+  'mr-fresh': '✓',
+  'mr-merged': '✓',
+  'mr-closed': '✕',
+  'notes-created': '▤',
+  'notes-modified': '✎',
+  'git-pull': '⇣',
+  'git-unpushed': '⇡',
+  'git-modified': '✎',
+}
 const neb = atom({ plugin: 'white-rabbit-panel', key: 'neb' } as const, false)
 
 type Colors = { background?: string; accent: string; hover?: string; rule?: string; alarm?: string; tip?: string; text?: string; muted?: string; merged: string; opened: string }
@@ -582,7 +596,8 @@ export const register: Register = on => {
         return null
       }
       const closed = isFolded(folded, id)
-      const label = ` ${closed ? '▸' : '▾'} ${title} ${count} `
+      const glyph = SECTION_GLYPHS[id]
+      const label = ` ${closed ? '▸' : '▾'} ${glyph ? `${glyph} ` : ''}${title} ${count} `
       return (
         <Box key={id} flexDirection="column">
           <Box key={`${id}-head`} flexDirection="row">

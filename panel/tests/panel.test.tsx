@@ -279,9 +279,9 @@ test('the MR tab splits open, merged this turn and merged earlier, each section 
     plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
   })
   await ui.press({ key: 'tab-mr' })
-  expect((await ui.find({ key: 'fold-mr-open' }))?.props.label).toBe(' ▾ OPEN 1 ')
-  expect((await ui.find({ key: 'fold-mr-fresh' }))?.props.label).toBe(' ▾ MERGED THIS TURN 1 ')
-  expect((await ui.find({ key: 'fold-mr-merged' }))?.props.label).toBe(' ▸ MERGED 2 ')
+  expect((await ui.find({ key: 'fold-mr-open' }))?.props.label).toBe(' ▾ ● OPEN 1 ')
+  expect((await ui.find({ key: 'fold-mr-fresh' }))?.props.label).toBe(' ▾ ✓ MERGED THIS TURN 1 ')
+  expect((await ui.find({ key: 'fold-mr-merged' }))?.props.label).toBe(' ▸ ✓ MERGED 2 ')
   expect(await ui.find({ key: 'fold-mr-closed' })).toBeUndefined()
   expect(await ui.find({ type: 'Link', text: 'ops!1' })).toBeUndefined()
 
@@ -360,7 +360,7 @@ test('the pane shows the context, git, merge request details, note ages and past
   expect(await ui.find({ type: 'Text', text: 'feat: x' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'src/a.py' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'feat: remote' })).toBeDefined()
-  expect((await ui.find({ key: 'fold-git-pull' }))?.props.label).toBe(' ▾ TO PULL 1 ')
+  expect((await ui.find({ key: 'fold-git-pull' }))?.props.label).toBe(' ▾ ⇣ TO PULL 1 ')
   await ui.press({ key: 'git-pull' })
   await ui.press({ key: 'git-commit' })
   await ui.press({ key: 'git-push' })
