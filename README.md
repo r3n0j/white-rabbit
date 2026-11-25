@@ -214,4 +214,6 @@ A session reads it when it starts; a running one picks it up once resumed.
 
 Without an argument each one moves to the next choice; every choice is kept across sessions.
 With matrix installed, the pane ends with a `⇱ Nebuchadnezzar` button that brings neb to the front.
+`panel/themes/matrix.json` adds a Claude Code theme in neb's colours, `Matrix (neb)` in `/theme`:
+with it the pane's frame matches the `matrix` palette.
 Tests: `claude plugin test panel`.

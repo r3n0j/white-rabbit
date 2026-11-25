@@ -1,0 +1,23 @@
+{
+  "name": "Matrix (neb)",
+  "base": "dark",
+  "overrides": {
+    "composerSidebarBackground": "rgb(4,17,27)",
+    "userMessageBackground": "rgb(12,36,53)",
+    "userMessageBackgroundHover": "rgb(18,58,82)",
+    "bashMessageBackgroundColor": "rgb(10,28,41)",
+    "memoryBackgroundColor": "rgb(12,36,53)",
+    "selectionBg": "rgb(18,58,82)",
+    "promptBorder": "rgb(38,86,110)",
+    "text": "rgb(216,240,248)",
+    "inactive": "rgb(79,111,128)",
+    "subtle": "rgb(38,86,110)",
+    "suggestion": "rgb(127,179,196)",
+    "remember": "rgb(127,179,196)",
+    "permission": "rgb(46,167,219)",
+    "background": "rgb(46,167,219)",
+    "success": "rgb(120,216,192)",
+    "warning": "rgb(240,176,64)",
+    "error": "rgb(224,48,58)"
+  }
+}
