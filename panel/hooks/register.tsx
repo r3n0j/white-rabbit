@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
-import type { Display, Mr, Note, Palette, Placement, Tab, View } from '../types'
+import type { Display, Git, Mr, Note, Palette, Placement, Tab, Usage, View } from '../types'
 
 const PANE = 'white-rabbit'
 const TITLE = 'White rabbit'
@@ -9,6 +9,7 @@ const TABS: { id: Tab; glyph: string; label: string }[] = [
   { id: 'todo', glyph: '▸', label: 'To-do' },
   { id: 'mr', glyph: '⇗', label: 'MR' },
   { id: 'notes', glyph: '▤', label: 'Notes' },
+  { id: 'git', glyph: '⎇', label: 'Git' },
 ]
 const REFRESH_MS = 20_000
 
@@ -18,14 +19,16 @@ const placement = atom({ plugin: 'white-rabbit-panel', key: 'placement' } as con
 const palette = atom({ plugin: 'white-rabbit-panel', key: 'palette' } as const, 'default')
 const tab = atom({ plugin: 'white-rabbit-panel', key: 'tab' } as const, 'todo')
 const folds = atom({ plugin: 'white-rabbit-panel', key: 'folds' } as const, {})
-const FOLDED_BY_DEFAULT = ['mr-merged', 'mr-closed']
+const git = atom({ plugin: 'white-rabbit-panel', key: 'git' } as const, null)
+const usage = atom({ plugin: 'white-rabbit-panel', key: 'usage' } as const, null)
+const FOLDED_BY_DEFAULT = ['mr-merged', 'mr-closed', 'todo-past']
 const neb = atom({ plugin: 'white-rabbit-panel', key: 'neb' } as const, false)
 
-type Colors = { background?: string; accent: string; hover?: string; rule?: string; text?: string; muted?: string; merged: string; opened: string }
+type Colors = { background?: string; accent: string; hover?: string; rule?: string; alarm?: string; text?: string; muted?: string; merged: string; opened: string }
 
 const PALETTES: Record<Palette, Colors> = {
   default: { accent: 'cyan', merged: 'green', opened: 'yellow' },
-  matrix: { background: '#04111b', accent: '#2ea7db', hover: '#7fb3c4', rule: '#26566e', text: '#d8f0f8', muted: '#7fb3c4', merged: '#78d8c0', opened: '#f0b040' },
+  matrix: { background: '#04111b', accent: '#2ea7db', hover: '#7fb3c4', rule: '#26566e', alarm: '#e0303a', text: '#d8f0f8', muted: '#7fb3c4', merged: '#78d8c0', opened: '#f0b040' },
   night: { background: '#1e1e2e', accent: '#89b4fa', merged: 'green', opened: 'yellow' },
   forest: { background: '#1b2b22', accent: '#8fd694', merged: 'green', opened: 'yellow' },
   ember: { background: '#2b1d16', accent: '#f5a97f', merged: 'green', opened: 'yellow' },
@@ -55,12 +58,79 @@ async function load($: EngineInterface): Promise<View | null> {
   }
 }
 
+async function loadUsage($: EngineInterface): Promise<Usage | null> {
+  try {
+    const { context, rateLimits, cost } = await $.session.usage()
+    return {
+      percent: context.percent ?? null,
+      tokens: context.tokens ?? null,
+      window: context.window,
+      usd: cost?.usd ?? null,
+      limits: rateLimits.map(({ kind, percentUsed, resetsAt }) => ({ kind, percentUsed, resetsAt: resetsAt ?? null })),
+    }
+  } catch {
+    return null
+  }
+}
+
+async function loadGit($: EngineInterface, cwd: string | null | undefined): Promise<Git | null> {
+  if (!cwd) {
+    return null
+  }
+  try {
+    const status = await $.process.run(['git', 'status', '--porcelain=v1', '-b'], { cwd, timeoutMs: 5_000 })
+    if (status.exitCode !== 0) {
+      return null
+    }
+    const [head = '', ...lines] = status.stdout.split('\n').filter(Boolean)
+    const tracking = /^## (.+?)(?:\.\.\.(\S+))?(?: \[(.*)\])?$/.exec(head)
+    const branch = tracking?.[1] ?? '?'
+    const upstream = tracking?.[2] ?? null
+    const counts = tracking?.[3] ?? ''
+    const unpushed = upstream === null ? [] : await (async () => {
+      const log = await $.process.run(['git', 'log', '--format=%h%x09%s', '@{u}..HEAD'], { cwd, timeoutMs: 5_000 })
+      return log.exitCode !== 0 ? [] : log.stdout.split('\n').filter(Boolean).map(line => {
+        const [sha = '', ...subject] = line.split('\t')
+        return { sha, subject: subject.join('\t') }
+      })
+    })()
+    return {
+      branch,
+      upstream,
+      ahead: Number(/ahead (\d+)/.exec(counts)?.[1] ?? 0),
+      behind: Number(/behind (\d+)/.exec(counts)?.[1] ?? 0),
+      files: lines.map(line => ({ status: line.slice(0, 2).trim(), path: line.slice(3) })),
+      unpushed,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function compact($: EngineInterface) {
+  try {
+    const { skip } = await $.session.compact()
+    if (skip) {
+      $.ui.toast(`Compaction skipped: ${skip}`)
+    }
+  } catch {
+    $.ui.toast('Compaction waits for the end of the turn')
+  }
+  await update($, usage, () => null)
+  const fresh = await loadUsage($)
+  await update($, usage, () => fresh)
+}
+
 async function refresh($: EngineInterface) {
+  const now = await loadUsage($)
+  await update($, usage, () => now)
   const next = await load($)
   if (next === null) {
     return
   }
   await update($, view, () => next)
+  const repo = await loadGit($, next.cwd)
+  await update($, git, () => repo)
   const fresh = next.mrs.filter(mr => mr.fresh).map(mr => mr.url)
   const before = await read($, announced)
   for (const mr of next.mrs.filter(mr => mr.fresh && !before.includes(mr.url))) {
@@ -200,6 +270,45 @@ function fitting(notes: Note[], budget: number) {
     used += width
   }
   return shown
+}
+
+const MERGE_WORDS: Record<string, string> = {
+  mergeable: 'mergeable',
+  need_rebase: 'need rebase',
+  not_approved: 'not approved',
+  conflict: 'conflicts',
+  discussions_not_resolved: 'threads open',
+  blocked_status: 'blocked by dependencies',
+  ci_must_pass: 'pipeline must pass',
+  ci_still_running: 'pipeline running',
+  draft_status: 'draft',
+  not_open: 'not open',
+  requested_changes: 'changes requested',
+  jira_association_missing: 'no Jira ticket',
+}
+const LIMIT_NAMES: Record<string, string> = { five_hour: '5h', seven_day: '7d' }
+
+function age(at: string | null | undefined, now: number) {
+  const time = at ? Date.parse(at) : NaN
+  if (Number.isNaN(time)) {
+    return ''
+  }
+  const minutes = Math.max(0, Math.round((now - time) / 60_000))
+  if (minutes < 60) return `${minutes}m`
+  if (minutes < 48 * 60) return `${Math.round(minutes / 60)}h`
+  return `${Math.round(minutes / 1440)}d`
+}
+
+function clockOf(at: string | null) {
+  const time = at ? new Date(at) : null
+  return time && !Number.isNaN(time.getTime())
+    ? `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+    : ''
+}
+
+function gauge(percent: number, cells: number) {
+  const full = Math.round((Math.min(100, Math.max(0, percent)) / 100) * cells)
+  return '▰'.repeat(full) + '▱'.repeat(cells - full)
 }
 
 function mrColor(mr: Mr, colors: Colors) {
@@ -375,7 +484,17 @@ export const register: Register = on => {
     const todos = current?.todos ?? []
     const mrs = current?.mrs ?? []
     const notes = current?.notes ?? []
-    const counts: Record<Tab, number> = { todo: todos.length, mr: mrs.length, notes: notes.length }
+    const repo = await read($, git)
+    const session = await read($, usage)
+    const now = await $.clock.now()
+    const past = current?.past ?? []
+    const alarm = colors.alarm ?? 'red'
+    const counts: Record<Tab, number> = {
+      todo: todos.length,
+      mr: mrs.length,
+      notes: notes.length,
+      git: (repo?.files.length ?? 0) + (repo?.unpushed.length ?? 0),
+    }
 
     const folded = await read($, folds)
     const section = (id: string, title: string, count: number, body: () => RenderChildren) => {
@@ -397,6 +516,39 @@ export const register: Register = on => {
     }
     const empty = (text: string) => <Text {...muted}>{text}</Text>
 
+    const percent = session?.percent ?? null
+    const level = percent === null ? colors.text : percent >= 85 ? alarm : percent >= 60 ? colors.opened : colors.accent
+    const contextLine = session && (
+      <Box key="context" flexDirection="row" gap={1}>
+        <Text bold color={colors.accent}>CTX</Text>
+        <Text bold color={level}>{percent === null ? '?' : `${Math.round(percent)}%`}</Text>
+        <Text color={level}>{gauge(percent ?? 0, 20)}</Text>
+        {session.tokens !== null && (
+          <Text {...muted}>{Math.round(session.tokens / 1000)}k/{Math.round(session.window / 1000)}k</Text>
+        )}
+        {session.usd !== null && <Text {...muted}>· ${session.usd.toFixed(2)}</Text>}
+        {session.limits.map(limit => (
+          <Text key={`limit-${limit.kind}`} color={limit.percentUsed >= 85 ? alarm : colors.text}>
+            · {LIMIT_NAMES[limit.kind] ?? limit.kind} {Math.round(limit.percentUsed)}%
+            {limit.resetsAt ? ` ↺${clockOf(limit.resetsAt)}` : ''}
+          </Text>
+        ))}
+        <Box key="compact-zone" flexGrow={1} justifyContent="flex-end">
+          <Button key="compact" plain label="⇣ compact" onPress={() => compact($)} {...hovered(colors)} />
+        </Box>
+      </Box>
+    )
+    const gitLine = repo && (
+      <Box key="git-line" flexDirection="row" gap={1}>
+        <Text bold color={colors.accent}>⎇</Text>
+        <Text bold color={colors.text}>{repo.branch}</Text>
+        {repo.upstream === null && <Text {...muted}>(no upstream)</Text>}
+        {repo.ahead > 0 && <Text color={colors.opened}>↑{repo.ahead}</Text>}
+        {repo.behind > 0 && <Text color={colors.opened}>↓{repo.behind}</Text>}
+        <Text {...muted}>· ✎ {repo.files.length} modified · ⇡ {repo.unpushed.length} unpushed</Text>
+      </Box>
+    )
+
     const tabs = (
       <Box key="tabs" flexDirection="row" gap={1}>
         {TABS.map(({ id, glyph, label }) => {
@@ -412,7 +564,7 @@ export const register: Register = on => {
       </Box>
     )
 
-    const todoTab = () => (todos.length === 0 && !current?.then)
+    const todoTab = () => (todos.length === 0 && !current?.then && past.length === 0)
       ? empty('Nothing expected from you.')
       : (
         <Box key="todo" flexDirection="column" gap={1}>
@@ -420,6 +572,12 @@ export const register: Register = on => {
             ? <Text key={todo.text} bold color={colors.merged}>▸ {todo.text}</Text>
             : <Text key={todo.text} color={colors.text}>○ {todo.text}</Text>))}
           {section('todo-then', 'THEN', current?.then ? 1 : 0, () => <Text {...muted}>◦ {current?.then}</Text>)}
+          {section('todo-past', 'PAST', past.length, () => past.map(item => (
+            <Box key={`past-${item.text}`} flexDirection="row" gap={1}>
+              <Text {...muted} wrap="truncate-end">✓ {item.text}</Text>
+              <Text {...rule}>{age(item.at, now)}</Text>
+            </Box>
+          )))}
         </Box>
       )
 
@@ -433,6 +591,18 @@ export const register: Register = on => {
           <Text color={mrColor(mr, colors)}>
             {mr.state === 'merged' ? '✓ merged' : mr.state === 'opened' ? 'open' : `✕ ${mr.state ?? '?'}`}
           </Text>
+          {mr.state === 'opened' && mr.pipeline && (
+            <Text color={mr.pipeline === 'success' ? colors.merged : mr.pipeline === 'failed' ? alarm : colors.opened}>
+              {mr.pipeline === 'success' ? '✓' : mr.pipeline === 'failed' ? '✖' : '◐'} pipeline
+              {mr.pipeline === 'success' || mr.pipeline === 'failed' ? '' : ` ${mr.pipeline}`}
+            </Text>
+          )}
+          {mr.state === 'opened' && mr.merge_status && MERGE_WORDS[mr.merge_status] !== undefined && (
+            <Text color={mr.merge_status === 'mergeable' ? colors.merged : mr.merge_status === 'conflict' ? alarm : colors.opened}>
+              · {MERGE_WORDS[mr.merge_status]}
+            </Text>
+          )}
+          {(mr.comments ?? 0) > 0 && <Text {...muted}>· {mr.comments} comment{mr.comments === 1 ? '' : 's'}</Text>}
         </Box>
         {mr.title && <Text {...muted} wrap="truncate-end">   {mr.title}</Text>}
       </Box>
@@ -469,6 +639,7 @@ export const register: Register = on => {
                   {note.link
                     ? <Link href={note.link} label={note.title ?? '?'} />
                     : <Text color={colors.text}>{note.title ?? '?'}</Text>}
+                  <Text {...rule}>{age(note.at, now)}</Text>
                 </Box>
               ))}
             </Box>
@@ -477,11 +648,41 @@ export const register: Register = on => {
       )
     }
 
+    const gitTab = () => {
+      if (repo === null) {
+        return empty('The session folder is not a git repository.')
+      }
+      if (counts.git === 0) {
+        return empty('Nothing to push, nothing modified.')
+      }
+      return (
+        <Box key="git" flexDirection="column" gap={1}>
+          {section('git-unpushed', 'UNPUSHED', repo.unpushed.length, () => repo.unpushed.map(commit => (
+            <Box key={`commit-${commit.sha}`} flexDirection="row" gap={1}>
+              <Text color={colors.accent}>{commit.sha}</Text>
+              <Text color={colors.text} wrap="truncate-end">{commit.subject}</Text>
+            </Box>
+          )))}
+          {section('git-modified', 'MODIFIED', repo.files.length, () => repo.files.map(file => (
+            <Box key={`file-${file.path}`} flexDirection="row" gap={1}>
+              <Text color={file.status === '??' ? colors.opened : colors.accent}>{file.status.padEnd(2)}</Text>
+              <Text color={colors.text} wrap="truncate-start">{file.path}</Text>
+            </Box>
+          )))}
+        </Box>
+      )
+    }
+    const tabBody = { todo: todoTab, mr: mrTab, notes: notesTab, git: gitTab }[shown]
+
     return (
       <Box key="body" flexDirection="column" gap={1} paddingX={1}
         width={e.props.bodyColumns} minHeight={e.props.scroll.bodyRows} backgroundColor={colors.background}>
+        <Box key="identity" flexDirection="column">
+          {contextLine}
+          {gitLine}
+        </Box>
         {tabs}
-        {shown === 'todo' ? todoTab() : shown === 'mr' ? mrTab() : notesTab()}
+        {tabBody()}
       </Box>
     )
   })

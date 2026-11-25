@@ -27,6 +27,13 @@ function panes(on: On) {
     return { value: undefined }
   })
   on('session.id', async () => ({ value: 'sid' }))
+  on('clock.now', async () => ({ value: Date.parse('2026-11-25T15:00:00') }))
+  on('session.usage', async () => ({ value: {
+    startedAt: 0,
+    context: { tokens: 84_000, window: 200_000, percent: 42 },
+    rateLimits: [{ kind: 'five_hour', percentUsed: 62, resetsAt: '2026-11-25T17:00:00' }],
+    cost: { usd: 3.2 },
+  } }) as never)
   on('ui.open', async (_, e) => {
     open.add(e.id)
     return { value: { isPlaced: true as const } }
@@ -280,5 +287,53 @@ test('the MR tab splits open, merged this turn and merged earlier, each section 
   await ui.press({ key: 'fold-mr-open' })
   expect(await ui.find({ type: 'Link', text: 'ops!3' })).toBeUndefined()
   expect(kept.get('folds')).toEqual({ 'mr-merged': false, 'mr-open': true })
+  await ui.unmount()
+})
+
+test('the pane shows the context, git, merge request details, note ages and past actions', async ($, on) => {
+  panes(on)
+  const rich = {
+    ...VIEW,
+    cwd: '/repo',
+    mrs: [{ ...VIEW.mrs[1], pipeline: 'failed', merge_status: 'need_rebase', comments: 2 }],
+    notes: [{ ...VIEW.notes[0], at: '2026-11-25T12:00:00' }],
+    past: [{ text: 'Merger ops!2', at: '2026-11-25T14:30:00' }],
+  }
+  let compacted = 0
+  on('session.compact', async () => {
+    compacted += 1
+    return {}
+  })
+  on('process.run', async (_, e) => {
+    const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } })
+    if (e.argv[0] === 'git' && e.argv[1] === 'status') return out('## develop...origin/develop [ahead 2]\n M src/a.py\n?? b.md\n')
+    if (e.argv[0] === 'git' && e.argv[1] === 'log') return out('abc1234\tfeat: x\ndef5678\tfix: y\n')
+    return out(JSON.stringify(rich))
+  })
+  await $.command.run({ command: 'rabbit', args: '' })
+  const ui = await $.ui.mount({
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
+  })
+  expect(await ui.find({ type: 'Text', text: '42%' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /5h 62% ↺17:00/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /✎ 2 modified · ⇡ 2 unpushed/ })).toBeDefined()
+  await ui.press({ key: 'compact' })
+  expect(compacted).toBe(1)
+
+  await ui.press({ key: 'fold-todo-past' })
+  expect(await ui.find({ type: 'Text', text: /✓ Merger ops!2/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '30m' })).toBeDefined()
+
+  await ui.press({ key: 'tab-mr' })
+  expect(await ui.find({ type: 'Text', text: /✖ pipeline/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /need rebase/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2 comments/ })).toBeDefined()
+
+  await ui.press({ key: 'tab-notes' })
+  expect(await ui.find({ type: 'Text', text: '3h' })).toBeDefined()
+
+  await ui.press({ key: 'tab-git' })
+  expect(await ui.find({ type: 'Text', text: 'feat: x' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'src/a.py' })).toBeDefined()
   await ui.unmount()
 })
