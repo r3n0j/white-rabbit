@@ -92,6 +92,19 @@ class ViewTest(RegistryCase):
         self.assertEqual(view["counts"], {"merged": 0, "to_merge": 1})
 
 
+class ConfigSetTest(RegistryCase):
+    def test_sets_a_choice_and_keeps_the_other_keys(self):
+        self.configure(notes={"link": "obsidian"})
+        self.assertEqual(run(["config", "set", "display.summary", "off"]), (0, "display.summary = off\n"))
+        self.assertEqual(config.settings()["display"]["summary"], "off")
+        self.assertEqual(config.settings()["notes"]["link"], "obsidian")
+
+    def test_refuses_an_unknown_key_or_value(self):
+        self.assertEqual(run(["config", "set", "display.summary", "nowhere"])[0], 1)
+        self.assertEqual(run(["config", "set", "data_dir", "/x"])[0], 1)
+        self.assertEqual(config.settings()["display"]["summary"], "statusline")
+
+
 class TodoTest(RegistryCase):
     def test_sets_the_todo_of_the_current_session(self):
         run(["todo", "[next] Relire !5", "Merger"], env={"CLAUDE_CODE_SESSION_ID": SID})

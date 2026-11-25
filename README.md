@@ -167,11 +167,16 @@ Optional `~/.config/white-rabbit/config.json` (defaults shown):
                  "glab": "glab"},
       "notes": {"enabled": false, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
       "todo": {"instructions": true},
-      "recap": {"enabled": true}
+      "recap": {"enabled": true},
+      "display": {"summary": "statusline"}
     }
 
 `WHITE_RABBIT_INSTRUCTIONS=off` in the environment of a session turns both instructions off, whatever
 the file says: handy for headless runs (`claude -p` launched by a scheduler) whose output nobody reads.
+
+`display.summary` says where the MR, Notes and Next lines show: `statusline`, `band` (they leave
+the statusline and `white-rabbit view` tells a panel to draw them above the prompt) or `off`
+(`white-rabbit config set display.summary band`).
 
 `notes.link` is `obsidian` (`obsidian://open?vault=<vault>&file=…`), `file` or `none`.
 A wrong value keeps its default and is logged in `<data_dir>/errors.log`.
@@ -183,6 +188,8 @@ a merge request in `capture_commands` instead.
     white-rabbit hook capture|refresh|start
     white-rabbit todo ["[next] action" ...]
     white-rabbit statusline
+    white-rabbit view [session]
+    white-rabbit config set <key> <value>
     white-rabbit refresh-all
     white-rabbit add-mr <url> [session]
     white-rabbit instructions

@@ -11,6 +11,7 @@ usage: white-rabbit <command>
   todo ["[next] action" ... "[then] idea"]  replace this session's to-do list (and suggested follow-up)
   statusline                   render the statusline (payload on stdin)
   view [session]               print the session's merge requests, notes and to-do as JSON
+  config set <key> <value>     set a choice in config.json (display.summary: statusline|band|off)
   refresh-all                  refresh the stale merge requests of the recent sessions
   add-mr <url> [session]       add a merge request by hand
   instructions                 print the to-do and recap instructions given to Claude
@@ -77,6 +78,10 @@ def main(argv=None):
         elif command == "view":
             sid = rest[0] if rest else os.environ.get("CLAUDE_CODE_SESSION_ID")
             print(json.dumps(statusline.session_view(registry.load(sid)), ensure_ascii=False))
+        elif command == "config" and len(rest) == 3 and rest[0] == "set":
+            problem = config.set_choice(rest[1], rest[2])
+            print(problem or "%s = %s" % (rest[1], rest[2]))
+            return 1 if problem else 0
         elif command == "refresh-all":
             registry.refresh_all()
         elif command == "add-mr" and rest:

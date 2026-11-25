@@ -18,8 +18,9 @@ DEFAULTS = {
     "notes": {"enabled": False, "root": "~/notes", "link": "file", "vault": "", "extensions": [".md"]},
     "todo": {"instructions": True},
     "recap": {"enabled": True},
+    "display": {"summary": "statusline"},
 }
-CHOICES = {("notes", "link"): ("obsidian", "file", "none")}
+CHOICES = {("notes", "link"): ("obsidian", "file", "none"), ("display", "summary"): ("statusline", "band", "off")}
 PATHS = (("notes", "root"),)
 
 
@@ -128,6 +129,28 @@ def _compute():
     for context, exc in problems:
         _log(merged["data_dir"], context, exc)
     return merged
+
+
+def set_choice(dotted, value):
+    """Écrit dans config.json un réglage à choix fermé (`display.summary`), sans toucher aux
+    autres clés ; renvoie un message d'erreur, ou None si c'est écrit."""
+    key = tuple(dotted.split(".", 1))
+    allowed = CHOICES.get(key)
+    if not allowed:
+        return "not a settable key: %s (one of %s)" % (dotted, ", ".join(".".join(k) for k in CHOICES))
+    if value not in allowed:
+        return "%s takes %s" % (dotted, "|".join(allowed))
+    raw = _read_file([])
+    section = raw.get(key[0]) if isinstance(raw.get(key[0]), dict) else {}
+    raw[key[0]] = dict(section, **{key[1]: value})
+    path = config_path()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(raw, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    os.replace(tmp, path)
+    return None
 
 
 def data_dir():

@@ -186,6 +186,14 @@ class StatuslineTest(RegistryCase):
         data = {"mrs": [], "notes": [], "todos": [{"text": "Relire", "next": True}], "then": "Lancer B"}
         self.assertEqual(self.plain(statusline.statusline_lines(data)), ["Next: ▸ Relire"])
 
+    def test_statusline_lines_leave_the_summary_to_the_band_or_drop_it(self):
+        reg.add_mr(SID, MR1)
+        reg.set_todo_items(SID, ["[next] Relire"])
+        for where in ("band", "off"):
+            self.configure(display={"summary": where})
+            self.assertEqual(statusline.statusline_lines(reg.load(SID)), [])
+            self.assertEqual(statusline.session_view(reg.load(SID))["display"], where)
+
     def plain(self, lines):
         return [re.sub(r"\033\]8;;[^\033]*\033\\|\033\[[\d;]*m", "", line) for line in lines]
 
