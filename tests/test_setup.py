@@ -94,3 +94,38 @@ class SetupTest(IsolatedCase):
             setup.run([], settings_path=self.path, exe="/My Tools/white-rabbit")
         self.assertEqual(self.read()["statusLine"]["command"], "'/My Tools/white-rabbit' statusline")
 
+
+
+class PanelSetupTest(SetupTest):
+    def link(self):
+        return os.path.join(self.root, ".claude", "white-rabbit-panel")
+
+    def test_panel_links_the_packaged_panel_and_declares_it(self):
+        self.write_settings({"env": {"CLAUDE_CODE_PLUGIN_DIRS": "/other/mod"}})
+        self.run_setup("--panel")
+        self.assertEqual(os.path.realpath(self.link()), os.path.realpath(setup.panel_dir()))
+        self.assertEqual(self.read()["env"]["CLAUDE_CODE_PLUGIN_DIRS"],
+                         os.pathsep.join(["/other/mod", "~/.claude/white-rabbit-panel"]))
+        self.assertTrue(os.path.exists(os.path.join(self.link(), ".claude-plugin", "plugin.json")))
+
+    def test_a_linked_panel_is_kept_up_to_date_without_the_flag(self):
+        self.run_setup("--panel")
+        os.remove(self.link())
+        os.symlink(self.root, self.link())
+        code, out = self.run_setup()
+        self.assertIn("+ panel:", out)
+        self.assertEqual(os.path.realpath(self.link()), os.path.realpath(setup.panel_dir()))
+        self.assertEqual(self.run_setup()[1].strip(), "nothing to change")
+
+    def test_no_panel_without_the_flag(self):
+        self.run_setup()
+        self.assertFalse(os.path.lexists(self.link()))
+        self.assertNotIn("env", self.read())
+
+    def test_dry_run_links_nothing(self):
+        self.run_setup("--panel", "--dry-run")
+        self.assertFalse(os.path.lexists(self.link()))
+
+    def write_settings(self, data):
+        with open(self.path, "w") as fh:
+            json.dump(data, fh)

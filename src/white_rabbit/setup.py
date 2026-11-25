@@ -1,5 +1,6 @@
 """Mise en place de white-rabbit dans ~/.claude/settings.json : statusline et trois hooks,
-avec le chemin absolu de l'exécutable (le PATH des hooks n'est pas garanti)."""
+avec le chemin absolu de l'exécutable (le PATH des hooks n'est pas garanti) ; avec `--panel`,
+le panneau du paquet, par un lien stable déclaré dans CLAUDE_CODE_PLUGIN_DIRS."""
 import json
 import os
 import shlex
@@ -12,6 +13,43 @@ EVENTS = (
     ("SessionStart", None, "hook start", {}),
 )
 STATUSLINE_REFRESH_S = 60
+PANEL_LINK = "~/.claude/white-rabbit-panel"
+PLUGIN_DIRS = "CLAUDE_CODE_PLUGIN_DIRS"
+
+
+def panel_dir():
+    """Le panneau livré avec le paquet."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "panel")
+
+
+def panel_linked():
+    return os.path.islink(os.path.expanduser(PANEL_LINK))
+
+
+def _panel(data, changes):
+    """Lien stable vers le panneau du paquet, déclaré dans CLAUDE_CODE_PLUGIN_DIRS ; renvoie
+    l'action à faire sur le lien (None s'il est déjà bon)."""
+    link = os.path.expanduser(PANEL_LINK)
+    relink = None
+    if not panel_linked() or os.path.realpath(link) != os.path.realpath(panel_dir()):
+        relink = panel_dir()
+        changes.append("+ panel: %s -> %s" % (PANEL_LINK, panel_dir()))
+    env = data.setdefault("env", {})
+    dirs = [d for d in (env.get(PLUGIN_DIRS) or "").split(os.pathsep) if d]
+    if not any(os.path.expanduser(d) == link for d in dirs):
+        env[PLUGIN_DIRS] = os.pathsep.join(dirs + [PANEL_LINK])
+        changes.append("+ env %s: %s" % (PLUGIN_DIRS, PANEL_LINK))
+    return relink
+
+
+def _link(target):
+    link = os.path.expanduser(PANEL_LINK)
+    os.makedirs(os.path.dirname(link), exist_ok=True)
+    tmp = link + ".tmp"
+    if os.path.lexists(tmp):
+        os.remove(tmp)
+    os.symlink(target, tmp)
+    os.replace(tmp, link)
 
 
 def _command():
@@ -64,11 +102,14 @@ def run(args, settings_path=None, exe=None):
             refused = True
             print("a statusline is already set (%s): kept. Run with --force to replace it, or make it "
                   "print the output of `%s statusline` (same stdin)." % (current, exe))
+    relink = _panel(data, changes) if "--panel" in args or panel_linked() else None
     for line in changes or ["nothing to change"]:
         print(line)
     if dry:
         print("(dry run: nothing written)")
     elif changes:
+        if relink:
+            _link(relink)
         if os.path.exists(path):
             shutil.copyfile(path, path + ".bak")
         os.makedirs(os.path.dirname(path), exist_ok=True)

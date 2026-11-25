@@ -4,7 +4,7 @@ import os
 import sys
 import urllib.parse
 
-from white_rabbit import adapters, config, instructions, registry, statusline
+from white_rabbit import adapters, config, instructions, registry, statusline, update
 
 USAGE = """\
 usage: white-rabbit <command>
@@ -17,7 +17,10 @@ usage: white-rabbit <command>
   refresh-all                  refresh the stale merge requests of the recent sessions
   add-mr <url> [session]       add a merge request by hand
   instructions                 print the to-do and recap instructions given to Claude
-  setup [--dry-run] [--force]  register the statusline and hooks in ~/.claude/settings.json"""
+  setup [--dry-run] [--force] [--panel]  register the statusline and hooks in ~/.claude/settings.json
+                               (--panel: the Claude Code panel too)
+  update [--force]             install the latest release with pipx, then run setup
+  check-update                 look for a newer release (run daily, in the background)"""
 
 
 def _payload():
@@ -58,6 +61,7 @@ def _hook(action):
         registry.refresh(payload.get("session_id"))
     elif action == "start":
         registry.purge()
+        update.spawn_check()
         output = instructions.session_start_output(config.settings())
         if output:
             print(output)
@@ -97,6 +101,10 @@ def main(argv=None):
                 print("merge request added to session %s" % sid)
         elif command == "instructions":
             print(instructions.render(config.settings()))
+        elif command == "update":
+            return update.run(rest)
+        elif command == "check-update":
+            update.check()
         elif command == "setup":
             from white_rabbit import setup
             return setup.run(rest)

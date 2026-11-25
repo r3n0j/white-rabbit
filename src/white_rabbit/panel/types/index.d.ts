@@ -26,6 +26,7 @@ export type View = {
   cwd?: string | null
   output_total?: number | null
   open_request?: string | null
+  update?: string | null
   display?: Display
 }
 export type Git = {

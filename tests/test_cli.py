@@ -66,6 +66,7 @@ class HookStartTest(RegistryCase):
     def test_recap_alone_is_still_injected(self):
         self.configure(todo={"instructions": False})
         body = json.loads(run(["hook", "start"], {"session_id": SID})[1])["hookSpecificOutput"]
+        self.spawn_check.assert_called()
         self.assertIn("**Done**", body["additionalContext"])
 
     def test_nothing_when_todo_and_recap_are_off(self):

@@ -3,4 +3,4 @@ __pycache__/
 build/
 dist/
 .superpowers/
-panel/.claude-plugin/types/
+src/white_rabbit/panel/.claude-plugin/types/

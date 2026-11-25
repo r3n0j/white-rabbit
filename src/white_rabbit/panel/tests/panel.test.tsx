@@ -387,3 +387,20 @@ test('the band headers open the pane on their tab', async ($, on) => {
   expect(kept.get('tab')).toBe('mr')
   await band.unmount()
 })
+
+test('the head offers to install a newer white-rabbit', async ($, on) => {
+  panes(on)
+  const calls: string[][] = []
+  on('process.run', async (_, e) => {
+    calls.push([...e.argv])
+    return { value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, update: 'v0.7.0' }), stderr: '' } }
+  })
+  await $.command.run({ command: 'rabbit', args: '' })
+  const ui = await $.ui.mount({
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
+  })
+  expect((await ui.find({ key: 'upgrade' }))?.props.label).toBe('⬆ 0.7.0')
+  await ui.press({ key: 'upgrade' })
+  expect(calls).toContainEqual(['white-rabbit', 'update'])
+  await ui.unmount()
+})

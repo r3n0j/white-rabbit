@@ -17,3 +17,13 @@ rabbit = "white_rabbit.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+white_rabbit = [
+    "panel/.claude-plugin/plugin.json",
+    "panel/hooks/*",
+    "panel/themes/*",
+    "panel/types/*",
+    "panel/tests/*",
+    "panel/tsconfig.json",
+]

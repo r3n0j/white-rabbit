@@ -168,6 +168,19 @@ function askPull($: EngineInterface, repo: Git) {
     + 'mets-la à jour avec git pull --rebase.', 'Asked the session to pull')
 }
 
+async function upgrade($: EngineInterface, tag: string) {
+  $.ui.toast(`Installing white-rabbit ${tag}…`)
+  try {
+    const { exitCode, stdout } = await $.process.run(['white-rabbit', 'update'], { timeoutMs: 300_000 })
+    $.ui.toast(exitCode === 0
+      ? `white-rabbit ${tag} installed: open a new session to load it`
+      : `white-rabbit update failed: ${stdout.trim().split('\n').pop() ?? ''}`)
+  } catch {
+    $.ui.toast('white-rabbit update could not be run')
+  }
+  await refresh($)
+}
+
 async function compact($: EngineInterface) {
   try {
     const { skip } = await $.session.compact()
@@ -664,16 +677,28 @@ export const register: Register = on => {
         <Text color={tipColor}>{text}</Text>
       </Box>
     )
+    const newer = current?.update
     const sessionLine = session && (
-      <Text key="session-line" wrap="truncate-end">
-        <Text bold color={colors.accent}>{modelName(session.model)}</Text>
-        <Text {...muted}> · OUT </Text>
-        <Text color={colors.text}>{tokens(current?.output_total)}</Text>
-        {session.usd !== null && <Text {...muted}> · </Text>}
-        {session.usd !== null && <Text color={colors.text}>{dollars(session.usd)}</Text>}
-        <Text {...muted}> · </Text>
-        <Text color={colors.text}>{since(now - session.startedAt)}</Text>
-      </Text>
+      <Box key="session-row" flexDirection="row" gap={1}>
+        <Box key="session-text" flexGrow={1} flexShrink={1}>
+          <Text wrap="truncate-end">
+            <Text bold color={colors.accent}>{modelName(session.model)}</Text>
+            <Text {...muted}> · OUT </Text>
+            <Text color={colors.text}>{tokens(current?.output_total)}</Text>
+            {session.usd !== null && <Text {...muted}> · </Text>}
+            {session.usd !== null && <Text color={colors.text}>{dollars(session.usd)}</Text>}
+            <Text {...muted}> · </Text>
+            <Text color={colors.text}>{since(now - session.startedAt)}</Text>
+          </Text>
+        </Box>
+        {newer && (
+          <Box key="upgrade-zone">
+            <Button key="upgrade" plain label={`⬆ ${newer.replace(/^v/, '')}`} onPress={() => upgrade($, newer)}
+              hover={{ ...hovered(colors).hover, scope: 'upgrade-tip' }} />
+          </Box>
+        )}
+        {newer && tooltip('upgrade-tip', `Install white-rabbit ${newer}`, { top: 1, right: 0 })}
+      </Box>
     )
     const folder = (current?.cwd ?? '').split('/').filter(Boolean).pop()
     const gitLine = repo && (

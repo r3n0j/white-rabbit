@@ -32,6 +32,7 @@ captured but their state (opened, merged) is never refreshed.
     pipx install git+https://github.com/r3n0j/white-rabbit@v0.6.0
     white-rabbit setup --dry-run   # shows what it will add to ~/.claude/settings.json
     white-rabbit setup
+    white-rabbit setup --panel     # optional: the Claude Code panel (see Panel)
 
 `setup` adds the statusline (redrawn every 60 s by `refreshInterval`) and three hooks
 (PostToolUse on Bash/Write/Edit, Stop, SessionStart) with the absolute path of the command,
@@ -193,21 +194,38 @@ a merge request in `capture_commands` instead.
     white-rabbit refresh-all
     white-rabbit add-mr <url> [session]
     white-rabbit instructions
-    white-rabbit setup [--dry-run] [--force]
+    white-rabbit setup [--dry-run] [--force] [--panel]
+    white-rabbit update [--force]
+    white-rabbit check-update
 
 `rabbit` is a short alias.
 
+## Update
+
+    white-rabbit update
+
+It reads the latest `vX.Y.Z` tag on GitHub, reinstalls it with `pipx install --force`, then runs
+`setup` again (with `--panel` when the panel is installed), which changes nothing when everything is
+in place. Open a new Claude Code session afterwards. Once a day, the SessionStart hook looks for a
+newer tag in the background: the statusline then starts with `⬆ white-rabbit X.Y.Z · white-rabbit
+update`, and the panel with a `⬆ X.Y.Z` button that runs it.
+
+Installed from a clone rather than pipx, `update` only says so: pull that clone instead.
+
 ## Panel (Claude Code mod)
 
-`panel/` is a Claude Code mod that draws the session from `white-rabbit view`: a band above the
+`src/white_rabbit/panel/` is a Claude Code mod, installed with the package that draws the session from `white-rabbit view`: a band above the
 prompt, a pane in neb's style: the context window (with a compact button), the git state of the session's folder,
 then To-do, MR, Notes and Git tabs (the open one is kept) whose sections fold on a click on
 their header (MR: open, merged this turn, merged earlier and closed, the last two folded at first), and a toast when a merge request is
-merged. Load it in every session from `~/.claude/settings.json`:
+merged. Turn it on with:
 
-    "env": {"CLAUDE_CODE_PLUGIN_DIRS": "~/white-rabbit/panel"}
+    white-rabbit setup --panel
 
-A session reads it when it starts; a running one picks it up once resumed.
+It links `~/.claude/white-rabbit-panel` to the installed panel and adds that link to
+`env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, next to the folders already there;
+`white-rabbit update` keeps the link on the new version. A session loads it when it starts; a
+running one picks it up once resumed.
 
     /rabbit                              show or hide the pane
     /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
@@ -226,4 +244,4 @@ With matrix installed, a `⇱ Nebuchadnezzar` button in the prompt footer, left 
 With the `matrix` palette, the buttons light up in neb's label colour under the pointer.
 `panel/themes/matrix.json` adds a Claude Code theme in neb's colours, `Matrix (neb)` in `/theme`:
 with it the pane's frame matches the `matrix` palette.
-Tests: `claude plugin test panel`.
+Tests: `claude plugin test src/white_rabbit/panel`.

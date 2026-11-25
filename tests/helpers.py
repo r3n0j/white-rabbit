@@ -23,6 +23,9 @@ class IsolatedCase(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, env, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
+        checker = mock.patch("white_rabbit.update.spawn_check")
+        self.spawn_check = checker.start()
+        self.addCleanup(checker.stop)
         self.addCleanup(self._tmp.cleanup)
 
     def configure(self, **sections):

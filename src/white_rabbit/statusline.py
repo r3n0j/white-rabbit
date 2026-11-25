@@ -5,7 +5,7 @@ import json
 import os
 import re
 
-from white_rabbit import config, registry, transcript
+from white_rabbit import config, registry, transcript, update
 
 STATE_WORDS = {"closed": "closed", "locked": "locked"}
 STATUSLINE_TITLE_WIDTH = 32
@@ -118,8 +118,12 @@ def statusline_lines(data):
     autres items) et, à défaut, une ligne `Then:` atténuée (la suite proposée). Rien quand
     `display.summary` vaut `band` (le bandeau d'un panneau les reprend) ou `off`.
     Intitulés aqua, liens bleu clair, next en blanc vif, le reste atténué ;
-    sans couleur si NO_COLOR est défini. Une ligne vide est omise."""
+    sans couleur si NO_COLOR est défini. Une ligne vide est omise. En tête, l'annonce d'une version
+    plus récente de white-rabbit quand la vérification quotidienne en a trouvé une."""
     lines = []
+    newer = update.cached_latest()
+    if newer:
+        lines.append(_paint(f"⬆ white-rabbit {newer.lstrip('v')} · white-rabbit update", STATUSLINE_TO_MERGE))
     if config.settings()["display"]["summary"] != "statusline":
         return lines
     mr_line = _mr_line(data)
@@ -170,6 +174,7 @@ def session_view(data):
         "past": [{"text": t["text"], "at": t.get("at")} for t in data.get("past_todos") or [] if isinstance(t, dict)],
         "cwd": data.get("cwd"),
         "open_request": registry.open_request_path(data.get("session_id")),
+        "update": update.cached_latest(),
         "output_total": _output_total(data.get("session_id")),
         "display": config.settings()["display"]["summary"],
     }
