@@ -72,8 +72,12 @@ def _notes_line(data):
     return _paint("Notes:", STATUSLINE_LABEL) + " " + NOTE_SEPARATOR.join(items)
 
 
+def _mr_label(mr):
+    return f"{mr['project'].rsplit('/', 1)[-1]}!{mr['iid']}"
+
+
 def _mr_item(mr, style):
-    return _osc8(_paint(f"{mr['project'].rsplit('/', 1)[-1]}!{mr['iid']}", style), mr["url"])
+    return _osc8(_paint(_mr_label(mr), style), mr["url"])
 
 
 def _mr_line(data):
@@ -122,6 +126,26 @@ def statusline_lines(data):
     elif registry.then_item(data):
         lines.append(_paint("Then:", STATUSLINE_LABEL) + " " + _paint(f"◦ {registry.then_item(data)}", STATUSLINE_DIM))
     return lines
+
+
+def session_view(data):
+    """Vue complète de la session pour un panneau : toutes les MR (libellé, état, mergée depuis
+    la dernière réponse), les compteurs, les notes créées puis modifiées (les plus récentes
+    d'abord, avec leur lien), la ToDo visible et la suite proposée."""
+    fresh = {mr.get("url") for mr in registry.fresh_merged(data)}
+    merged, to_merge = registry.mr_counts(data)
+    notes = registry.visible_notes(data)
+    ordered = (_recent_first([n for n in notes if n.get("action") == "created"])
+               + _recent_first([n for n in notes if n.get("action") != "created"]))
+    return {
+        "mrs": [{"label": _mr_label(mr), "url": mr["url"], "state": mr.get("state"), "title": mr.get("title"),
+                 "fresh": mr["url"] in fresh} for mr in data.get("mrs", [])],
+        "counts": {"merged": merged, "to_merge": to_merge},
+        "notes": [{"title": n.get("title"), "action": n.get("action"), "link": registry.note_link(n["path"])}
+                  for n in ordered],
+        "todos": [{"text": t["text"], "next": bool(t.get("next"))} for t in registry.visible_todos(data)],
+        "then": registry.then_item(data),
+    }
 
 
 def render(raw):

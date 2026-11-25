@@ -80,6 +80,18 @@ class HookStartTest(RegistryCase):
         self.assertFalse(os.path.exists(old))
 
 
+class ViewTest(RegistryCase):
+    def test_prints_the_session_view_as_json(self):
+        reg.add_mr(SID, MR1)
+        view = json.loads(run(["view", SID])[1])
+        self.assertEqual([mr["label"] for mr in view["mrs"]], ["atlas-api!189"])
+
+    def test_defaults_to_the_current_session(self):
+        reg.add_mr(SID, MR1)
+        view = json.loads(run(["view"], env={"CLAUDE_CODE_SESSION_ID": SID})[1])
+        self.assertEqual(view["counts"], {"merged": 0, "to_merge": 1})
+
+
 class TodoTest(RegistryCase):
     def test_sets_the_todo_of_the_current_session(self):
         run(["todo", "[next] Relire !5", "Merger"], env={"CLAUDE_CODE_SESSION_ID": SID})
