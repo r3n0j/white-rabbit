@@ -5,7 +5,7 @@ import json
 import os
 import re
 
-from white_rabbit import config, registry
+from white_rabbit import config, registry, transcript
 
 STATE_WORDS = {"closed": "closed", "locked": "locked"}
 STATUSLINE_TITLE_WIDTH = 32
@@ -131,6 +131,14 @@ def statusline_lines(data):
     return lines
 
 
+def _output_total(sid):
+    try:
+        return transcript.output_total(sid)
+    except Exception as exc:
+        config.log_error("output total %s" % sid, exc)
+        return None
+
+
 def session_view(data):
     """Vue complète de la session pour un panneau : toutes les MR (libellé, état, mergée depuis
     la dernière réponse, pipeline, statut de merge, commentaires), les compteurs, les notes créées
@@ -154,6 +162,7 @@ def session_view(data):
         "then": registry.then_item(data),
         "past": [{"text": t["text"], "at": t.get("at")} for t in data.get("past_todos") or [] if isinstance(t, dict)],
         "cwd": data.get("cwd"),
+        "output_total": _output_total(data.get("session_id")),
         "display": config.settings()["display"]["summary"],
     }
 
