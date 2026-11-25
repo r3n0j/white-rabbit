@@ -200,20 +200,20 @@ a merge request in `capture_commands` instead.
 ## Panel (Claude Code mod)
 
 `panel/` is a Claude Code mod that draws the session from `white-rabbit view`: a band above the
-prompt, a pane with every merge request, note and to-do item, and a toast when a merge request is
+prompt, three panes Claude Code shows as tabs (To-do, MR, Notes), and a toast when a merge request is
 merged. Load it in every session from `~/.claude/settings.json`:
 
     "env": {"CLAUDE_CODE_PLUGIN_DIRS": "~/white-rabbit/panel"}
 
 A session reads it when it starts; a running one picks it up once resumed.
 
-    /rabbit                              show or hide the pane
+    /rabbit                              show or hide the panes
     /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
     /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits (mode: right of the prompt footer)
     /rabbit color [default|matrix|night|forest|ember]  the pane's palette
 
 Without an argument each one moves to the next choice; every choice is kept across sessions.
-With matrix installed, a `⇱ Nebuchadnezzar` button at the right of the prompt footer brings neb to the front.
+With matrix installed, a `⇱ Nebuchadnezzar` button in the prompt footer, left of `◧ rabbit`, brings neb to the front.
 With the `matrix` palette, the buttons light up in neb's label colour under the pointer.
 `panel/themes/matrix.json` adds a Claude Code theme in neb's colours, `Matrix (neb)` in `/theme`:
 with it the pane's frame matches the `matrix` palette.

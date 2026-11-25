@@ -3,8 +3,11 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Display, Mr, Note, Palette, Placement, View } from '../types'
 
-const PANE = 'white-rabbit'
-const TITLE = 'White rabbit'
+const TABS = [
+  { id: 'white-rabbit-todo', title: '▸ To-do', section: 'todo' },
+  { id: 'white-rabbit-mr', title: '⇗ MR', section: 'mr' },
+  { id: 'white-rabbit-notes', title: '▤ Notes', section: 'notes' },
+] as const
 const REFRESH_MS = 20_000
 
 const view = atom({ plugin: 'white-rabbit-panel', key: 'view' } as const, null)
@@ -62,12 +65,18 @@ async function refresh($: EngineInterface) {
 }
 
 async function toggle($: EngineInterface) {
-  if ((await $.ui.panes()).some(pane => pane.id === PANE)) {
-    await $.ui.close({ id: PANE })
+  const open = (await $.ui.panes()).filter(pane => TABS.some(tab => tab.id === pane.id))
+  if (open.length > 0) {
+    for (const pane of open) {
+      await $.ui.close({ id: pane.id })
+    }
     return
   }
   await refresh($)
-  await $.ui.open({ id: PANE, title: TITLE })
+  for (const tab of TABS) {
+    await $.ui.open({ id: tab.id, title: tab.title })
+  }
+  await $.ui.open({ id: TABS[0].id, title: TABS[0].title })
 }
 
 function isEmpty(current: View | null) {
@@ -247,8 +256,8 @@ export const register: Register = on => {
     return (
       <Box key="mode" flexDirection="row" gap={1}>
         {e.props.modes.length > 0 && <Text dimColor>{e.props.modes.join(' & ')}</Text>}
-        {inMode && <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} {...hover} />}
         {withNeb && <Button key="neb" plain dimColor label="⇱ Nebuchadnezzar" onPress={() => openNeb($)} {...hover} />}
+        {inMode && <Button key="open" plain dimColor label="◧ rabbit" onPress={() => toggle($)} {...hover} />}
       </Box>
     )
   })
@@ -333,64 +342,81 @@ export const register: Register = on => {
     )
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const current = await read($, view)
-    const colors = PALETTES[await read($, palette)]
-    const { background, accent } = colors
-    const muted = secondary(colors)
-    const { Box, Link, Text } = $.ui.resolve(e)
-    const frame = {
-      flexDirection: 'column' as const,
-      gap: 1,
-      paddingX: 1,
-      width: e.props.bodyColumns,
-      minHeight: e.props.scroll.bodyRows,
-      backgroundColor: background,
-    }
-    if (isEmpty(current) || current === null) {
-      return <Box key="body" {...frame}><Text {...muted}>Nothing left behind by this session yet.</Text></Box>
-    }
-    const created = current.notes.filter(note => note.action === 'created')
-    const modified = current.notes.filter(note => note.action !== 'created')
+  for (const tab of TABS) {
+    on('ui.render', { component: 'Pane', requestId: tab.id }, async ($, e) => {
+      const current = await read($, view)
+      const colors = PALETTES[await read($, palette)]
+      const { accent } = colors
+      const muted = secondary(colors)
+      const { Box, Link, Text } = $.ui.resolve(e)
+      const frame = {
+        flexDirection: 'column' as const,
+        gap: 1,
+        paddingX: 1,
+        width: e.props.bodyColumns,
+        minHeight: e.props.scroll.bodyRows,
+        backgroundColor: colors.background,
+      }
+      const empty = (text: string) => <Box key="body" {...frame}><Text {...muted}>{text}</Text></Box>
 
-    return (
-      <Box key="body" {...frame}>
-        {current.mrs.length > 0 && (
-          <Box flexDirection="column">
-            <Text bold color={accent}>Merge requests</Text>
-            {current.mrs.map(mr => (
-              <Box key={mr.url} flexDirection="row" gap={1}>
-                <Text color={mrColor(mr, colors)}>{mr.state === 'merged' ? '✓' : mr.state === 'opened' ? '●' : '○'}</Text>
-                <Text color={colors.text} strikethrough={mr.fresh}><Link href={mr.url} label={mr.label} /></Text>
-                {mr.title && <Text {...muted} wrap="truncate-end">{mr.title}</Text>}
-                {mr.state !== 'opened' && mr.state !== 'merged' && <Text {...muted}>({mr.state})</Text>}
-              </Box>
-            ))}
+      if (tab.section === 'todo') {
+        if (current === null || (current.todos.length === 0 && !current.then)) {
+          return empty('Nothing expected from you.')
+        }
+        return (
+          <Box key="body" {...frame}>
+            <Box flexDirection="column">
+              {current.todos.map(todo => (
+                <Text key={todo.text} bold={todo.next} {...(todo.next ? { color: colors.text } : muted)}>
+                  {todo.next ? '▸' : '·'} {todo.text}
+                </Text>
+              ))}
+              {current.then && <Text {...muted}>◦ {current.then}</Text>}
+            </Box>
           </Box>
-        )}
-        {[['Notes created', created], ['Notes modified', modified]].map(([heading, notes]) =>
-          (notes as View['notes']).length > 0 && (
-            <Box key={heading as string} flexDirection="column">
-              <Text bold color={accent}>{heading as string}</Text>
-              {(notes as View['notes']).map(note => (
-                note.link
-                  ? <Link key={note.link} href={note.link} label={note.title ?? '?'} />
-                  : <Text key={`note-${note.title}`} color={colors.text}>{note.title ?? '?'}</Text>
+        )
+      }
+
+      if (tab.section === 'mr') {
+        if (current === null || current.mrs.length === 0) {
+          return empty('No merge request in this session.')
+        }
+        return (
+          <Box key="body" {...frame}>
+            <Box flexDirection="column">
+              {current.mrs.map(mr => (
+                <Box key={mr.url} flexDirection="row" gap={1}>
+                  <Text color={mrColor(mr, colors)}>{mr.state === 'merged' ? '✓' : mr.state === 'opened' ? '●' : '○'}</Text>
+                  <Text color={colors.text} strikethrough={mr.fresh}><Link href={mr.url} label={mr.label} /></Text>
+                  {mr.title && <Text {...muted} wrap="truncate-end">{mr.title}</Text>}
+                  {mr.state !== 'opened' && mr.state !== 'merged' && <Text {...muted}>({mr.state})</Text>}
+                </Box>
               ))}
             </Box>
-          ))}
-        {(current.todos.length > 0 || current.then) && (
-          <Box flexDirection="column">
-            <Text bold color={accent}>To-do</Text>
-            {current.todos.map(todo => (
-              <Text key={todo.text} bold={todo.next} {...(todo.next ? { color: colors.text } : muted)}>
-                {todo.next ? '▸' : '·'} {todo.text}
-              </Text>
-            ))}
-            {current.then && <Text {...muted}>◦ {current.then}</Text>}
           </Box>
-        )}
-      </Box>
-    )
-  })
+        )
+      }
+
+      if (current === null || current.notes.length === 0) {
+        return empty('No note written in this session.')
+      }
+      const created = current.notes.filter(note => note.action === 'created')
+      const modified = current.notes.filter(note => note.action !== 'created')
+      return (
+        <Box key="body" {...frame}>
+          {[['Created', created], ['Modified', modified]].map(([heading, notes]) =>
+            (notes as View['notes']).length > 0 && (
+              <Box key={heading as string} flexDirection="column">
+                <Text bold color={accent}>{heading as string}</Text>
+                {(notes as View['notes']).map(note => (
+                  note.link
+                    ? <Link key={note.link} href={note.link} label={note.title ?? '?'} />
+                    : <Text key={`note-${note.title}`} color={colors.text}>{note.title ?? '?'}</Text>
+                ))}
+              </Box>
+            ))}
+        </Box>
+      )
+    })
+  }
 }
