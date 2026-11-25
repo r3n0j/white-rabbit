@@ -24,6 +24,7 @@ export type View = {
   then: string | null
   past?: PastTodo[]
   cwd?: string | null
+  output_total?: number | null
   display?: Display
 }
 export type Git = {
@@ -35,11 +36,12 @@ export type Git = {
   unpushed: { sha: string; subject: string }[]
 }
 export type Usage = {
+  model: string | null
+  startedAt: number
   percent: number | null
   tokens: number | null
   window: number
   usd: number | null
-  limits: { kind: string; percentUsed: number; resetsAt: string | null }[]
 }
 
 declare module 'claude-code' {

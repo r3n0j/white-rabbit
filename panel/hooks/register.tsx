@@ -60,13 +60,15 @@ async function load($: EngineInterface): Promise<View | null> {
 
 async function loadUsage($: EngineInterface): Promise<Usage | null> {
   try {
-    const { context, rateLimits, cost } = await $.session.usage()
+    const { context, cost, startedAt } = await $.session.usage()
+    const model = await $.session.model().catch(() => null)
     return {
+      model,
+      startedAt,
       percent: context.percent ?? null,
       tokens: context.tokens ?? null,
       window: context.window,
       usd: cost?.usd ?? null,
-      limits: rateLimits.map(({ kind, percentUsed, resetsAt }) => ({ kind, percentUsed, resetsAt: resetsAt ?? null })),
     }
   } catch {
     return null
@@ -320,7 +322,6 @@ const MERGE_WORDS: Record<string, string> = {
   requested_changes: 'changes requested',
   jira_association_missing: 'no Jira ticket',
 }
-const LIMIT_NAMES: Record<string, string> = { five_hour: '5h', seven_day: '7d' }
 
 function age(at: string | null | undefined, now: number) {
   const time = at ? Date.parse(at) : NaN
@@ -331,13 +332,6 @@ function age(at: string | null | undefined, now: number) {
   if (minutes < 60) return `${minutes}m`
   if (minutes < 48 * 60) return `${Math.round(minutes / 60)}h`
   return `${Math.round(minutes / 1440)}d`
-}
-
-function clockOf(at: string | null) {
-  const time = at ? new Date(at) : null
-  return time && !Number.isNaN(time.getTime())
-    ? `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
-    : ''
 }
 
 function stamp(at: string | null | undefined) {
@@ -353,6 +347,33 @@ function newestMergeFirst(mrs: Mr[]) {
   return mrs.map((mr, index) => ({ mr, index }))
     .sort((a, b) => (Date.parse(b.mr.merged_at ?? '') || 0) - (Date.parse(a.mr.merged_at ?? '') || 0) || b.index - a.index)
     .map(({ mr }) => mr)
+}
+
+function modelName(model: string | null) {
+  if (!model) {
+    return '?'
+  }
+  const short = model.replace(/^claude-/, '').replace(/\[.*\]$/, '')
+  const [family = '', ...version] = short.split('-')
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)}${version.length ? ` ${version.join('-')}` : ''}`
+}
+
+function tokens(n: number | null | undefined) {
+  if (n === null || n === undefined) return '—'
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${Math.round(n / 1000)}k`
+  return `${(n / 1_000_000).toFixed(1)}M`
+}
+
+function dollars(usd: number) {
+  return usd >= 100 ? `${Math.round(usd)}$` : `${usd.toFixed(2)}$`
+}
+
+function since(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000))
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`
+  return `${Math.floor(seconds / 86_400)}d`
 }
 
 function gauge(percent: number, cells: number) {
@@ -569,11 +590,6 @@ export const register: Register = on => {
 
     const percent = session?.percent ?? null
     const level = percent === null ? colors.text : percent >= 85 ? alarm : percent >= 60 ? colors.opened : colors.accent
-    const limits = (session?.limits ?? []).map(limit => ({
-      key: limit.kind,
-      text: ` · ${LIMIT_NAMES[limit.kind] ?? limit.kind} ${Math.round(limit.percentUsed)}%${limit.resetsAt ? ` ↺${clockOf(limit.resetsAt)}` : ''}`,
-      hot: limit.percentUsed >= 85,
-    }))
     const tipBackground = colors.tip ?? 'gray'
     const tipColor = colors.tip ? colors.text : 'black'
     const tooltip = (scope: string, text: string, spot: { top: number; left?: number; right?: number }) => (
@@ -582,15 +598,37 @@ export const register: Register = on => {
         <Text color={tipColor}>{text}</Text>
       </Box>
     )
+    const sessionLine = session && (
+      <Text key="session-line" wrap="truncate-end">
+        <Text bold color={colors.accent}>{modelName(session.model)}</Text>
+        <Text {...muted}> · OUT </Text>
+        <Text color={colors.text}>{tokens(current?.output_total)}</Text>
+        {session.usd !== null && <Text {...muted}> · </Text>}
+        {session.usd !== null && <Text color={colors.text}>{dollars(session.usd)}</Text>}
+        <Text {...muted}> · </Text>
+        <Text color={colors.text}>{since(now - session.startedAt)}</Text>
+      </Text>
+    )
+    const folder = (current?.cwd ?? '').split('/').filter(Boolean).pop()
+    const gitLine = repo && (
+      <Text key="git-line" wrap="truncate-end">
+        {folder && <Text bold color={colors.text}>/{folder} </Text>}
+        <Text bold color={colors.accent}>⎇ </Text>
+        <Text bold color={colors.text}>{repo.branch}</Text>
+        {repo.upstream === null && <Text {...muted}> (no upstream)</Text>}
+        {repo.ahead > 0 && <Text color={colors.opened}> ↑{repo.ahead}</Text>}
+        {repo.behind > 0 && <Text color={colors.opened}> ↓{repo.behind}</Text>}
+        <Text {...muted}> · ✎ {repo.files.length} modified · ⇡ {repo.unpushed.length} unpushed</Text>
+      </Text>
+    )
+    const label = percent === null ? 'CTX ? ' : `CTX ${Math.round(percent)}% `
     const contextLine = session && (
       <Box key="context" flexDirection="column">
         <Box key="context-row" flexDirection="row" gap={1}>
           <Box key="context-text" flexGrow={1} flexShrink={1} hover={{ scope: 'context-tip' }}>
             <Text wrap="truncate-end">
-              <Text bold color={colors.accent}>CTX </Text>
-              <Text bold color={level}>{percent === null ? '?' : `${Math.round(percent)}%`} </Text>
-              <Text color={level}>{gauge(percent ?? 0, Math.max(4, Math.min(30, width - 20)))}</Text>
-              {session.usd !== null && <Text {...muted}> · ${session.usd.toFixed(2)}</Text>}
+              <Text bold color={level}>{label}</Text>
+              <Text color={level}>{gauge(percent ?? 0, Math.max(4, width - label.length - 3))}</Text>
             </Text>
           </Box>
           <Box key="compact-zone">
@@ -601,26 +639,7 @@ export const register: Register = on => {
         {session.tokens !== null && tooltip('context-tip',
           `${Math.round(session.tokens / 1000)}k / ${Math.round(session.window / 1000)}k tokens`, { top: 1, left: 0 })}
         {tooltip('compact-tip', 'Compact the conversation', { top: 1, right: 0 })}
-        {limits.length > 0 && (
-          <Text key="limits" wrap="truncate-end">
-            {limits.map((limit, index) => (
-              <Text key={`limit-${limit.key}`} color={limit.hot ? alarm : colors.text}>
-                {index === 0 ? limit.text.slice(3) : limit.text}
-              </Text>
-            ))}
-          </Text>
-        )}
       </Box>
-    )
-    const gitLine = repo && (
-      <Text key="git-line" wrap="truncate-end">
-        <Text bold color={colors.accent}>⎇ </Text>
-        <Text bold color={colors.text}>{repo.branch}</Text>
-        {repo.upstream === null && <Text {...muted}> (no upstream)</Text>}
-        {repo.ahead > 0 && <Text color={colors.opened}> ↑{repo.ahead}</Text>}
-        {repo.behind > 0 && <Text color={colors.opened}> ↓{repo.behind}</Text>}
-        <Text {...muted}> · ✎ {repo.files.length} modified · ⇡ {repo.unpushed.length} unpushed</Text>
-      </Text>
     )
 
     const tabs = (
@@ -777,8 +796,9 @@ export const register: Register = on => {
       <Box key="body" flexDirection="column" gap={1} paddingX={1}
         width={e.props.bodyColumns} minHeight={e.props.scroll.bodyRows} backgroundColor={colors.background}>
         <Box key="identity" flexDirection="column">
-          {contextLine}
+          {sessionLine}
           {gitLine}
+          {contextLine}
         </Box>
         {tabs}
         {tabBody()}

@@ -28,8 +28,9 @@ function panes(on: On) {
   })
   on('session.id', async () => ({ value: 'sid' }))
   on('clock.now', async () => ({ value: Date.parse('2026-11-25T15:00:00') }))
+  on('session.model', async () => ({ value: 'claude-opus-5-5' }))
   on('session.usage', async () => ({ value: {
-    startedAt: 0,
+    startedAt: Date.parse('2026-11-12T15:00:00'),
     context: { tokens: 84_000, window: 200_000, percent: 42 },
     rateLimits: [{ kind: 'five_hour', percentUsed: 62, resetsAt: '2026-11-25T17:00:00' }],
     cost: { usd: 3.2 },
@@ -299,6 +300,7 @@ test('the pane shows the context, git, merge request details, note ages and past
   const rich = {
     ...VIEW,
     cwd: '/repo',
+    output_total: 2_900_000,
     mrs: [{ ...VIEW.mrs[1], pipeline: 'failed', merge_status: 'need_rebase', comments: 2 }],
     notes: [{ ...VIEW.notes[0], at: '2026-11-25T12:00:00' }],
     past: [{ text: 'Merger ops!2', at: '2026-11-25T14:30:00' }],
@@ -323,10 +325,15 @@ test('the pane shows the context, git, merge request details, note ages and past
   const ui = await $.ui.mount({
     plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
   })
-  expect(await ui.find({ type: 'Text', text: '42% ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'Opus 5-5' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '2.9M' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '3.20$' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '13d' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '/repo ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'CTX 42% ' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '84k / 200k tokens' })).toBeDefined()
   expect((await ui.find({ key: 'compact' }))?.props.label).toBe('⇊')
-  expect(await ui.find({ type: 'Text', text: /5h 62% ↺17:00/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /5h/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /✎ 2 modified · ⇡ 2 unpushed/ })).toBeDefined()
   await ui.press({ key: 'compact' })
   expect(compacted).toBe(1)
