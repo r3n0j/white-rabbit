@@ -16,6 +16,6 @@ export type View = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'white-rabbit-panel': { view: View | null; announced: string[]; placement: Placement; palette: Palette; neb: boolean; tab: Tab }
+    'white-rabbit-panel': { view: View | null; announced: string[]; placement: Placement; palette: Palette; neb: boolean; tab: Tab; folds: Record<string, boolean> }
   }
 }

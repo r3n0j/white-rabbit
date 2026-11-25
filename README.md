@@ -200,7 +200,8 @@ a merge request in `capture_commands` instead.
 ## Panel (Claude Code mod)
 
 `panel/` is a Claude Code mod that draws the session from `white-rabbit view`: a band above the
-prompt, a pane in neb's style with To-do, MR and Notes tabs (the open one is kept), and a toast when a merge request is
+prompt, a pane in neb's style with To-do, MR and Notes tabs (the open one is kept) whose sections fold on a click on
+their header (MR: open, merged this turn, merged earlier and closed, the last two folded at first), and a toast when a merge request is
 merged. Load it in every session from `~/.claude/settings.json`:
 
     "env": {"CLAUDE_CODE_PLUGIN_DIRS": "~/white-rabbit/panel"}

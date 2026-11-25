@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Display, Mr, Note, Palette, Placement, Tab, View } from '../types'
 
@@ -17,6 +17,8 @@ const announced = atom({ plugin: 'white-rabbit-panel', key: 'announced' } as con
 const placement = atom({ plugin: 'white-rabbit-panel', key: 'placement' } as const, 'mode')
 const palette = atom({ plugin: 'white-rabbit-panel', key: 'palette' } as const, 'default')
 const tab = atom({ plugin: 'white-rabbit-panel', key: 'tab' } as const, 'todo')
+const folds = atom({ plugin: 'white-rabbit-panel', key: 'folds' } as const, {})
+const FOLDED_BY_DEFAULT = ['mr-merged', 'mr-closed']
 const neb = atom({ plugin: 'white-rabbit-panel', key: 'neb' } as const, false)
 
 type Colors = { background?: string; accent: string; hover?: string; rule?: string; text?: string; muted?: string; merged: string; opened: string }
@@ -120,10 +122,23 @@ async function restore($: EngineInterface) {
   if (typeof savedPalette === 'string' && savedPalette in PALETTES) {
     await update($, palette, () => savedPalette as Palette)
   }
+  const savedFolds = await $.store.get('folds')
+  if (savedFolds !== null && typeof savedFolds === 'object' && !Array.isArray(savedFolds)) {
+    await update($, folds, () => savedFolds as Record<string, boolean>)
+  }
   const savedTab = await $.store.get('tab')
   if (TABS.some(known => known.id === savedTab)) {
     await update($, tab, () => savedTab as Tab)
   }
+}
+
+function isFolded(current: Record<string, boolean>, id: string) {
+  return current[id] ?? FOLDED_BY_DEFAULT.includes(id)
+}
+
+async function fold($: EngineInterface, id: string) {
+  const next = await update($, folds, current => ({ ...current, [id]: !isFolded(current, id) }))
+  await $.store.set('folds', next)
 }
 
 async function showTab($: EngineInterface, wanted: Tab) {
@@ -362,12 +377,24 @@ export const register: Register = on => {
     const notes = current?.notes ?? []
     const counts: Record<Tab, number> = { todo: todos.length, mr: mrs.length, notes: notes.length }
 
-    const banner = (key: string, title: string) => (
-      <Box key={key} flexDirection="row">
-        <Text bold color={ink} backgroundColor={colors.accent}> {title} </Text>
-        <Text {...rule}>{'─'.repeat(Math.max(0, width - title.length - 2))}</Text>
-      </Box>
-    )
+    const folded = await read($, folds)
+    const section = (id: string, title: string, count: number, body: () => RenderChildren) => {
+      if (count === 0) {
+        return null
+      }
+      const closed = isFolded(folded, id)
+      const label = ` ${closed ? '▸' : '▾'} ${title} ${count} `
+      return (
+        <Box key={id} flexDirection="column">
+          <Box key={`${id}-head`} flexDirection="row">
+            <Button key={`fold-${id}`} plain label={label} onPress={() => fold($, id)}
+              hover={{ color: colors.accent, bold: true }} />
+            <Text {...rule}>{'─'.repeat(Math.max(0, width - label.length))}</Text>
+          </Box>
+          {!closed && body()}
+        </Box>
+      )
+    }
     const empty = (text: string) => <Text {...muted}>{text}</Text>
 
     const tabs = (
@@ -388,34 +415,39 @@ export const register: Register = on => {
     const todoTab = () => (todos.length === 0 && !current?.then)
       ? empty('Nothing expected from you.')
       : (
-        <Box key="todo" flexDirection="column">
-          {banner('todo-banner', `NEXT ${todos.length}`)}
-          {todos.map(todo => todo.next
+        <Box key="todo" flexDirection="column" gap={1}>
+          {section('todo-next', 'NEXT', todos.length, () => todos.map(todo => todo.next
             ? <Text key={todo.text} bold color={colors.merged}>▸ {todo.text}</Text>
-            : <Text key={todo.text} color={colors.text}>○ {todo.text}</Text>)}
-          {current?.then && <Text {...muted}>◦ {current.then}</Text>}
+            : <Text key={todo.text} color={colors.text}>○ {todo.text}</Text>))}
+          {section('todo-then', 'THEN', current?.then ? 1 : 0, () => <Text {...muted}>◦ {current?.then}</Text>)}
         </Box>
       )
 
+    const mrRow = (mr: Mr) => (
+      <Box key={mr.url} flexDirection="column">
+        <Box flexDirection="row" gap={1}>
+          <Text bold strikethrough={mr.fresh} color={ink}
+            backgroundColor={mr.state === 'opened' ? colors.merged : colors.muted ?? 'gray'}>
+            {' ⇗ '}<Link href={mr.url} label={mr.label} />{' '}
+          </Text>
+          <Text color={mrColor(mr, colors)}>
+            {mr.state === 'merged' ? '✓ merged' : mr.state === 'opened' ? 'open' : `✕ ${mr.state ?? '?'}`}
+          </Text>
+        </Box>
+        {mr.title && <Text {...muted} wrap="truncate-end">   {mr.title}</Text>}
+      </Box>
+    )
+    const mrGroups: [string, string, Mr[]][] = [
+      ['mr-open', 'OPEN', mrs.filter(mr => mr.state === 'opened')],
+      ['mr-fresh', 'MERGED THIS TURN', mrs.filter(mr => mr.state === 'merged' && mr.fresh)],
+      ['mr-merged', 'MERGED', mrs.filter(mr => mr.state === 'merged' && !mr.fresh)],
+      ['mr-closed', 'CLOSED', mrs.filter(mr => mr.state !== 'opened' && mr.state !== 'merged')],
+    ]
     const mrTab = () => mrs.length === 0
       ? empty('No merge request in this session.')
       : (
-        <Box key="mr" flexDirection="column">
-          {banner('mr-banner', `MR ${mrs.length}`)}
-          {mrs.map(mr => (
-            <Box key={mr.url} flexDirection="column">
-              <Box flexDirection="row" gap={1}>
-                <Text bold strikethrough={mr.fresh} color={ink}
-                  backgroundColor={mr.state === 'opened' ? colors.merged : colors.hover ?? 'gray'}>
-                  {' ⇗ '}<Link href={mr.url} label={mr.label} />{' '}
-                </Text>
-                <Text color={mrColor(mr, colors)}>
-                  {mr.state === 'merged' ? '✓ merged' : mr.state === 'opened' ? 'open' : `✕ ${mr.state ?? '?'}`}
-                </Text>
-              </Box>
-              {mr.title && <Text {...muted} wrap="truncate-end">   {mr.title}</Text>}
-            </Box>
-          ))}
+        <Box key="mr" flexDirection="column" gap={1}>
+          {mrGroups.map(([id, title, group]) => section(id, title, group.length, () => group.map(mrRow)))}
         </Box>
       )
 
@@ -423,15 +455,14 @@ export const register: Register = on => {
       if (notes.length === 0) {
         return empty('No note written in this session.')
       }
-      const groups: [string, Note[]][] = [
-        ['CREATED', notes.filter(note => note.action === 'created')],
-        ['MODIFIED', notes.filter(note => note.action !== 'created')],
+      const groups: [string, string, Note[]][] = [
+        ['notes-created', 'CREATED', notes.filter(note => note.action === 'created')],
+        ['notes-modified', 'MODIFIED', notes.filter(note => note.action !== 'created')],
       ]
       return (
         <Box key="notes" flexDirection="column" gap={1}>
-          {groups.filter(([, group]) => group.length > 0).map(([heading, group]) => (
-            <Box key={heading} flexDirection="column">
-              {banner(`${heading}-banner`, `${heading} ${group.length}`)}
+          {groups.map(([id, heading, group]) => section(id, heading, group.length, () => (
+            <Box key={`${id}-list`} flexDirection="column">
               {group.map(note => (
                 <Box key={note.link ?? `note-${note.title}`} flexDirection="row" gap={1}>
                   <Text color={colors.accent}>▤</Text>
@@ -441,7 +472,7 @@ export const register: Register = on => {
                 </Box>
               ))}
             </Box>
-          ))}
+          )))}
         </Box>
       )
     }

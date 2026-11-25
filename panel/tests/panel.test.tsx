@@ -108,7 +108,7 @@ test('the pane lists the merge requests, notes and to-do, and a fresh merge is a
     if (surface === 'terminal') {
       expect((await ui.find({ type: 'Link', text: 'plan' }))?.props.href).toBe(VIEW.notes[0]?.link)
     }
-    expect(await ui.find({ type: 'Text', text: /MODIFIED 1/ })).toBeDefined()
+    expect(await ui.find({ key: 'fold-notes-modified' })).toBeDefined()
     await ui.press({ key: 'tab-todo' })
     await ui.unmount()
   }
@@ -258,4 +258,27 @@ test('the footer holds the rabbit button by default and Nebuchadnezzar when matr
   })
   expect(await pane.find({ key: 'neb' })).toBeUndefined()
   await pane.unmount()
+})
+
+test('the MR tab splits open, merged this turn and merged earlier, each section folding on its header', async ($, on) => {
+  panes(on)
+  const old = { label: 'ops!1', url: 'https://gitlab.com/g/ops/-/merge_requests/1', state: 'merged', title: null, fresh: false }
+  on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, mrs: [...VIEW.mrs, old] }), stderr: '' } }))
+  await $.command.run({ command: 'rabbit', args: '' })
+  const ui = await $.ui.mount({
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
+  })
+  await ui.press({ key: 'tab-mr' })
+  expect((await ui.find({ key: 'fold-mr-open' }))?.props.label).toBe(' ▾ OPEN 1 ')
+  expect((await ui.find({ key: 'fold-mr-fresh' }))?.props.label).toBe(' ▾ MERGED THIS TURN 1 ')
+  expect((await ui.find({ key: 'fold-mr-merged' }))?.props.label).toBe(' ▸ MERGED 1 ')
+  expect(await ui.find({ key: 'fold-mr-closed' })).toBeUndefined()
+  expect(await ui.find({ type: 'Link', text: 'ops!1' })).toBeUndefined()
+
+  await ui.press({ key: 'fold-mr-merged' })
+  expect(await ui.find({ type: 'Link', text: 'ops!1' })).toBeDefined()
+  await ui.press({ key: 'fold-mr-open' })
+  expect(await ui.find({ type: 'Link', text: 'ops!3' })).toBeUndefined()
+  expect(kept.get('folds')).toEqual({ 'mr-merged': false, 'mr-open': true })
+  await ui.unmount()
 })
