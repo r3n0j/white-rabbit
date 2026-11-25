@@ -25,7 +25,7 @@ class StatuslineTest(RegistryCase):
         data["mrs"][1]["state"] = "closed"
         self.assertEqual(self.plain(statusline.statusline_lines(data)), [
             "MR: ● 1 to merge : atlas-api!189 · ops!77 (closed)",
-            "Notes: claude-session-registry-design · plan",
+            "Notes: claude-session-registry-design · ✎ 1 modified",
         ])
         self.assertEqual(statusline.statusline_lines(reg.load("inconnue")), [])
 
@@ -38,15 +38,32 @@ class StatuslineTest(RegistryCase):
         self.assertIn(f"\033]8;;{MR1}\033\\atlas-api!189\033]8;;\033\\", mr_line)
         self.assertIn(f"\033]8;;{reg.note_link(note)}\033\\plan\033]8;;\033\\", note_line)
 
-    def test_statusline_lines_truncate_titles_and_cap_notes(self):
+    def test_statusline_lines_truncate_titles_and_fit_notes_in_the_width(self):
         for i in range(8):
             reg.add_note(SID, self.note("B. Areas", f"note-{i}-{'x' * 40}.md"), True)
         (line,) = self.plain(statusline.statusline_lines(reg.load(SID)))
         titles = line[len("Notes: "):].split(" · ")
-        self.assertEqual(len(titles), 7)
-        self.assertEqual(titles[-1], "+2")
+        self.assertEqual(len(titles), 3)
+        self.assertEqual(titles[-1], "+6")
         self.assertTrue(all(len(t) <= statusline.STATUSLINE_TITLE_WIDTH for t in titles[:-1]))
         self.assertTrue(titles[0].endswith("…"))
+        self.assertLessEqual(len(" · ".join(titles[:-1])), statusline.STATUSLINE_NOTES_WIDTH)
+
+    def test_statusline_lines_name_the_created_notes_most_recent_first(self):
+        for name, created in (("old", True), ("edited", False), ("new", True), ("touched", False)):
+            reg.add_note(SID, self.note("B. Areas", f"{name}.md"), created)
+        data = reg.load(SID)
+        for note, stamp in zip(data["notes"], ("2026-11-20T10:00:00", "2026-11-21T10:00:00",
+                                               "2026-11-22T10:00:00", "2026-11-23T10:00:00")):
+            note["last_written"] = stamp
+        self.assertEqual(self.plain(statusline.statusline_lines(data)), ["Notes: new · old · ✎ 2 modified"])
+
+    def test_statusline_lines_name_the_modified_notes_when_none_is_created(self):
+        reg.add_note(SID, self.note("B. Areas", "a.md"), False)
+        reg.add_note(SID, self.note("B. Areas", "b.md"), False)
+        data = reg.load(SID)
+        data["notes"][1]["last_written"] = "2099-01-01T00:00:00"
+        self.assertEqual(self.plain(statusline.statusline_lines(data)), ["Notes: b · a"])
 
     def test_statusline_lines_only_notes(self):
         reg.add_note(SID, self.note("B. Areas", "n.md"), True)

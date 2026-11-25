@@ -7,7 +7,9 @@ current session left behind:
   still to merge (`● N to merge`), the ones merged since Claude's last answer struck through
   after the merged count, then the ones not merged yet, with their state;
 - **Next:** the actions the session expects from you, the next one first;
-- **Notes:** the note files the session wrote (optional).
+- **Notes:** the note files the session created, most recent first and as many as fit in about
+  90 characters (`+N` for the others), then how many existing notes it modified (`✎ N modified`;
+  listed by name instead when it created none) (optional).
 
 It also asks Claude to end every answer with a short recap block (what was done, merge
 requests, next action), consistent with the statusline.

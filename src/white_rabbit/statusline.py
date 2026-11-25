@@ -9,7 +9,8 @@ from white_rabbit import registry
 
 STATE_WORDS = {"closed": "closed", "locked": "locked"}
 STATUSLINE_TITLE_WIDTH = 32
-STATUSLINE_MAX_NOTES = 6
+STATUSLINE_NOTES_WIDTH = 90
+NOTE_SEPARATOR = " · "
 STATUSLINE_LABEL = "1;38;5;51"
 STATUSLINE_LINK = "38;5;33"
 STATUSLINE_NEXT = "1;97"
@@ -43,6 +44,34 @@ def _note_item(note):
     return _osc8(label, url) if url else label
 
 
+def _recent_first(notes):
+    return sorted(notes, key=lambda note: note.get("last_written") or "", reverse=True)
+
+
+def _notes_line(data):
+    """Ligne `Notes:` : les notes créées, de la plus récente à la plus ancienne, tant que leurs
+    titres courts tiennent dans STATUSLINE_NOTES_WIDTH (au moins une), puis `+N` et
+    `✎ N modified` ; sans note créée, les modifiées sont nommées à leur place. None sans note."""
+    notes = registry.visible_notes(data)
+    if not notes:
+        return None
+    created = _recent_first([note for note in notes if note.get("action") == "created"])
+    modified = [note for note in notes if note.get("action") != "created"]
+    named, counted = (created, len(modified)) if created else (_recent_first(modified), 0)
+    shown, width = [], 0
+    for note in named:
+        width += len(_short_title(note.get("title"))) + (len(NOTE_SEPARATOR) if shown else 0)
+        if shown and width > STATUSLINE_NOTES_WIDTH:
+            break
+        shown.append(note)
+    items = [_note_item(note) for note in shown]
+    if len(named) > len(shown):
+        items.append(_paint(f"+{len(named) - len(shown)}", STATUSLINE_DIM))
+    if counted:
+        items.append(_paint(f"✎ {counted} modified", STATUSLINE_DIM))
+    return _paint("Notes:", STATUSLINE_LABEL) + " " + NOTE_SEPARATOR.join(items)
+
+
 def _mr_item(mr, style):
     return _osc8(_paint(f"{mr['project'].rsplit('/', 1)[-1]}!{mr['iid']}", style), mr["url"])
 
@@ -74,8 +103,7 @@ def _mr_line(data):
 
 def statusline_lines(data):
     """Footer de la statusline : une ligne `MR:` (compteurs des MR mergées et à merger, puis
-    les MR non mergées), une ligne `Notes:` (liens de notes courts, au plus
-    STATUSLINE_MAX_NOTES puis `+N`), une ligne `Next:` (l'action next, puis `(+N)` pour les
+    les MR non mergées), une ligne `Notes:` (cf. _notes_line), une ligne `Next:` (l'action next, puis `(+N)` pour les
     autres items) et, à défaut, une ligne `Then:` atténuée (la suite proposée).
     Intitulés aqua, liens bleu clair, next en blanc vif, le reste atténué ;
     sans couleur si NO_COLOR est défini. Une ligne vide est omise."""
@@ -83,12 +111,9 @@ def statusline_lines(data):
     mr_line = _mr_line(data)
     if mr_line:
         lines.append(mr_line)
-    notes = registry.visible_notes(data)
-    if notes:
-        items = [_note_item(note) for note in notes[:STATUSLINE_MAX_NOTES]]
-        if len(notes) > STATUSLINE_MAX_NOTES:
-            items.append(_paint(f"+{len(notes) - STATUSLINE_MAX_NOTES}", STATUSLINE_DIM))
-        lines.append(_paint("Notes:", STATUSLINE_LABEL) + " " + " · ".join(items))
+    notes_line = _notes_line(data)
+    if notes_line:
+        lines.append(notes_line)
     upcoming = registry.next_todo(data)
     if upcoming:
         rest = len(registry.visible_todos(data)) - 1
