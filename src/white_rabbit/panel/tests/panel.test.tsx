@@ -424,7 +424,7 @@ test('the help tab and /rabbit help explain, list the shortcuts, commands and up
   expect((await ui.find({ key: 'tab-help' }))?.props.label).toBe(' ? Help ')
   await ui.press({ key: 'tab-help' })
   expect(await ui.find({ type: 'Text', text: ' SHORTCUTS ' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: 'alt+5' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: ' alt+5 ' })).toBeDefined()
   expect((await ui.find({ key: 'help-upgrade' }))?.props.label).toBe('⬆ install v0.8.0')
   expect(await ui.find({ type: 'Text', text: '0.7.0, 0.8.0 available' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: ' installed ' })).toBeDefined()

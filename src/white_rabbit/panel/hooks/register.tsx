@@ -977,6 +977,15 @@ export const register: Register = on => {
         <Text {...muted} wrap="wrap">   {what}</Text>
       </Box>
     ))
+    const inline = (entries: [string, string][]) => {
+      const pad = Math.max(...entries.map(([key]) => key.length))
+      return entries.map(([key, what]) => (
+        <Text key={`help-${key}`} wrap="truncate-end">
+          <Text color={colors.accent}> {key.padEnd(pad)} </Text>
+          <Text color={colors.text}>{what}</Text>
+        </Text>
+      ))
+    }
     const helpTab = () => (
       <Box key="help" flexDirection="column" gap={1}>
         <Box key="help-about" flexDirection="column">
@@ -985,18 +994,13 @@ export const register: Register = on => {
         </Box>
         <Box key="help-update" flexDirection="column">
           {heading('UPDATE')}
-          {helpUpdate(current).map(([key, what]) => (
-            <Text key={`help-${key}`} wrap="truncate-end">
-              <Text color={colors.accent}> {key} </Text>
-              <Text color={colors.text}>{what}</Text>
-            </Text>
-          ))}
+          {inline(helpUpdate(current))}
           <Box key="help-upgrade-zone" paddingLeft={1}>
             <Button key="help-upgrade" plain label={current?.update ? `⬆ install ${current.update}` : '⬆ white-rabbit update'}
               onPress={() => upgrade($, current?.update ?? null)} {...hovered(colors)} />
           </Box>
         </Box>
-        <Box key="help-shortcuts" flexDirection="column">{heading('SHORTCUTS')}{keyed(HELP_SHORTCUTS)}</Box>
+        <Box key="help-shortcuts" flexDirection="column">{heading('SHORTCUTS')}{inline(HELP_SHORTCUTS)}</Box>
         <Box key="help-commands" flexDirection="column">{heading('COMMANDS')}{keyed(HELP_COMMANDS)}</Box>
       </Box>
     )
