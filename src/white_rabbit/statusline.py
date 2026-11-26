@@ -5,7 +5,7 @@ import json
 import os
 import re
 
-from white_rabbit import config, registry, transcript, update
+from white_rabbit import __version__, config, registry, transcript, update
 
 STATE_WORDS = {"closed": "closed", "locked": "locked"}
 STATUSLINE_TITLE_WIDTH = 32
@@ -175,6 +175,7 @@ def session_view(data):
         "cwd": data.get("cwd"),
         "open_request": registry.open_request_path(data.get("session_id")),
         "update": update.cached_latest(),
+        "version": __version__,
         "output_total": _output_total(data.get("session_id")),
         "display": config.settings()["display"]["summary"],
     }

@@ -404,3 +404,24 @@ test('the head offers to install a newer white-rabbit', async ($, on) => {
   expect(calls).toContainEqual(['white-rabbit', 'update'])
   await ui.unmount()
 })
+
+test('the help tab and /rabbit help explain, list the shortcuts, commands and update', async ($, on) => {
+  panes(on)
+  on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, version: '0.7.0', update: 'v0.8.0' }), stderr: '' } }))
+  await $.command.run({ command: 'rabbit', args: '' })
+  const said = ((await $.command.run({ command: 'rabbit', args: 'help' })) as { text: string }).text
+  expect(said).toMatch(/^ABOUT\n/)
+  expect(said).toMatch(/\nSHORTCUTS\n[\s\S]*ctrl\+x tab/)
+  expect(said).toMatch(/\nCOMMANDS\n[\s\S]*\/rabbit display \[statusline\|band\|off\]/)
+  expect(said).toMatch(/\nUPDATE\n[\s\S]*0\.7\.0, 0\.8\.0 available[\s\S]*white-rabbit update/)
+
+  const ui = await $.ui.mount({
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
+  })
+  expect((await ui.find({ key: 'tab-help' }))?.props.label).toBe(' ? Help ')
+  await ui.press({ key: 'tab-help' })
+  expect(await ui.find({ type: 'Text', text: ' SHORTCUTS ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'ctrl+x ctrl+a' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /0\.8\.0 available/ })).toBeDefined()
+  await ui.unmount()
+})

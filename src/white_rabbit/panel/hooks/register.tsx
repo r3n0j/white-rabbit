@@ -10,7 +10,55 @@ const TABS: { id: Tab; glyph: string; label: string }[] = [
   { id: 'mr', glyph: '⇗', label: 'MR' },
   { id: 'notes', glyph: '▤', label: 'Notes' },
   { id: 'git', glyph: '⎇', label: 'Git' },
+  { id: 'help', glyph: '?', label: 'Help' },
 ]
+
+const HELP_ABOUT = [
+  'white-rabbit follows what this session leaves behind: merge requests, notes, to-do and git state.',
+  'The statusline, the band above the prompt and this pane read the same registry.',
+]
+const HELP_SHORTCUTS: [string, string][] = [
+  ['click a tab', 'open it'],
+  ['click a section header', 'fold or unfold it'],
+  ['click MR: Notes: Next:', 'open the pane on that tab (band, or statusline through kitty)'],
+  ['ctrl+x tab', 'give the keyboard to the band or the pane'],
+  ['tab', 'walk the buttons'],
+  ['enter', 'press the focused button'],
+  ['↑ ↓', 'scroll the pane'],
+  ['esc', 'back to the prompt'],
+  ['ctrl+x ctrl+a', 'fold or unfold the band'],
+]
+const HELP_COMMANDS: [string, string][] = [
+  ['/rabbit', 'show or hide this pane'],
+  ['/rabbit help', 'this help, in the conversation'],
+  ['/rabbit display [statusline|band|off]', 'where MR, Notes and Next show'],
+  ['/rabbit place [band|hint|mode|turn]', 'where the ◧ rabbit button sits'],
+  ['/rabbit color [default|matrix|night|forest|ember]', 'the palette of this pane'],
+  ['white-rabbit setup --panel', 'hooks, statusline and this pane in settings.json'],
+  ['white-rabbit config set display.summary <where>', 'same as /rabbit display'],
+  ['white-rabbit view', 'what this pane shows, as JSON'],
+]
+
+function helpUpdate(current: View | null): [string, string][] {
+  const installed = current?.version ?? '?'
+  return [
+    ['installed', current?.update ? `${installed}, ${current.update.replace(/^v/, '')} available` : `${installed}, up to date`],
+    ['white-rabbit update', 'install the latest release, then run setup again'],
+    ['⬆ button', 'shows in this head and in the statusline when a release is newer'],
+    ['check', 'once a day, in the background, at the start of a session'],
+  ]
+}
+
+function helpText(current: View | null) {
+  const rows = (title: string, entries: [string, string][]) =>
+    [title, ...entries.map(([key, what]) => `  ${key.padEnd(48)} ${what}`)].join('\n')
+  return [
+    ['ABOUT', ...HELP_ABOUT.map(line => `  ${line}`)].join('\n'),
+    rows('SHORTCUTS', HELP_SHORTCUTS),
+    rows('COMMANDS', HELP_COMMANDS),
+    rows('UPDATE', helpUpdate(current)),
+  ].join('\n\n')
+}
 const REFRESH_MS = 20_000
 const REQUEST_MS = 1_000
 
@@ -476,7 +524,7 @@ export const register: Register = on => {
     const started = await next(e)
     await restore($)
     await detectNeb($)
-    await $.command.register({ name: 'rabbit', description: 'Show or hide the white-rabbit pane; /rabbit place cycles its button, /rabbit color its palette, /rabbit display where MR, notes and next show' })
+    await $.command.register({ name: 'rabbit', description: 'Show or hide the white-rabbit pane; /rabbit place cycles its button, /rabbit color its palette, /rabbit display where MR, notes and next show; /rabbit help' })
     $.clock.every(REFRESH_MS, () => void refresh($))
     await refresh($)
     handled = await requestedAt($, (await read($, view))?.open_request).catch(() => 0)
@@ -494,6 +542,9 @@ export const register: Register = on => {
     const [verb, ...rest] = e.args.trim().split(/\s+/)
     if (verb === 'place') {
       return { text: await place($, rest.join(' ')) }
+    }
+    if (verb === 'help') {
+      return { text: helpText(await read($, view)) }
     }
     if (verb === 'display') {
       return { text: await display($, rest.join(' ')) }
@@ -642,6 +693,7 @@ export const register: Register = on => {
       mr: mrs.length,
       notes: notes.length,
       git: (repo?.files.length ?? 0) + (repo?.unpushed.length ?? 0) + (repo?.behind ?? 0),
+      help: 0,
     }
 
     const folded = await read($, folds)
@@ -736,7 +788,7 @@ export const register: Register = on => {
     const tabs = (
       <Box key="tabs" flexDirection="row" flexWrap="wrap" columnGap={1}>
         {TABS.map(({ id, glyph, label }) => {
-          const caption = `${glyph} ${label} ${counts[id]}`
+          const caption = id === 'help' ? `${glyph} ${label}` : `${glyph} ${label} ${counts[id]}`
           return id === shown
             ? <Text key={`tab-${id}`} bold color={ink} backgroundColor={colors.accent}> {caption} </Text>
             : (
@@ -891,7 +943,32 @@ export const register: Register = on => {
         </Box>
       )
     }
-    const tabBody = { todo: todoTab, mr: mrTab, notes: notesTab, git: gitTab }[shown]
+    const heading = (title: string) => (
+      <Box key={`help-${title}`} flexDirection="row">
+        <Text bold color={colors.accent}> {title} </Text>
+        <Box flexGrow={1} flexShrink={1}>
+          <Text {...rule} wrap="truncate-end">{'─'.repeat(Math.max(0, width - title.length - 2))}</Text>
+        </Box>
+      </Box>
+    )
+    const keyed = (entries: [string, string][]) => entries.map(([key, what]) => (
+      <Box key={`help-${key}`} flexDirection="column" paddingLeft={1}>
+        <Text color={colors.accent} wrap="truncate-end">{key}</Text>
+        <Text {...muted} wrap="wrap">   {what}</Text>
+      </Box>
+    ))
+    const helpTab = () => (
+      <Box key="help" flexDirection="column" gap={1}>
+        <Box key="help-about" flexDirection="column">
+          {heading('ABOUT')}
+          {HELP_ABOUT.map(line => <Text key={line} color={colors.text} wrap="wrap"> {line}</Text>)}
+        </Box>
+        <Box key="help-shortcuts" flexDirection="column">{heading('SHORTCUTS')}{keyed(HELP_SHORTCUTS)}</Box>
+        <Box key="help-commands" flexDirection="column">{heading('COMMANDS')}{keyed(HELP_COMMANDS)}</Box>
+        <Box key="help-update" flexDirection="column">{heading('UPDATE')}{keyed(helpUpdate(current))}</Box>
+      </Box>
+    )
+    const tabBody = { todo: todoTab, mr: mrTab, notes: notesTab, git: gitTab, help: helpTab }[shown]
 
     return (
       <Box key="body" flexDirection="column" gap={1} paddingX={1}

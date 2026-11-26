@@ -228,6 +228,7 @@ It links `~/.claude/white-rabbit-panel` to the installed panel and adds that lin
 running one picks it up once resumed.
 
     /rabbit                              show or hide the pane
+    /rabbit help                         about, shortcuts, commands and update (also the ? Help tab)
     /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
     /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits (mode: right of the prompt footer)
     /rabbit color [default|matrix|night|forest|ember]  the pane's palette

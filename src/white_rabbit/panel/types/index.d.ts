@@ -13,7 +13,7 @@ export type Note = { title: string | null; action: string | null; link: string |
 export type Todo = { text: string; next: boolean }
 export type PastTodo = { text: string; at: string | null }
 export type Placement = 'band' | 'hint' | 'mode' | 'turn'
-export type Tab = 'todo' | 'mr' | 'notes' | 'git'
+export type Tab = 'todo' | 'mr' | 'notes' | 'git' | 'help'
 export type Display = 'statusline' | 'band' | 'off'
 export type Palette = 'default' | 'matrix' | 'night' | 'forest' | 'ember'
 export type View = {
@@ -27,6 +27,7 @@ export type View = {
   output_total?: number | null
   open_request?: string | null
   update?: string | null
+  version?: string | null
   display?: Display
 }
 export type Git = {
