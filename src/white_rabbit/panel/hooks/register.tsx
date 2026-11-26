@@ -985,7 +985,12 @@ export const register: Register = on => {
         </Box>
         <Box key="help-update" flexDirection="column">
           {heading('UPDATE')}
-          {keyed(helpUpdate(current))}
+          {helpUpdate(current).map(([key, what]) => (
+            <Text key={`help-${key}`} wrap="truncate-end">
+              <Text color={colors.accent}> {key} </Text>
+              <Text color={colors.text}>{what}</Text>
+            </Text>
+          ))}
           <Box key="help-upgrade-zone" paddingLeft={1}>
             <Button key="help-upgrade" plain label={current?.update ? `⬆ install ${current.update}` : '⬆ white-rabbit update'}
               onPress={() => upgrade($, current?.update ?? null)} {...hovered(colors)} />
