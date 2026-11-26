@@ -129,3 +129,37 @@ class PanelSetupTest(SetupTest):
     def write_settings(self, data):
         with open(self.path, "w") as fh:
             json.dump(data, fh)
+
+
+class ShortcutsSetupTest(IsolatedCase):
+    def setUp(self):
+        super().setUp()
+        self.path = os.path.join(self.root, "settings.json")
+        self.keys = os.path.join(self.root, "keybindings.json")
+
+    def run_setup(self, *args):
+        out = io.StringIO()
+        with mock.patch.object(sys, "stdout", out):
+            setup.run(list(args), settings_path=self.path, exe=EXE)
+        return out.getvalue()
+
+    def bindings(self):
+        with open(self.keys) as fh:
+            return {k: v for b in json.load(fh)["bindings"] if b["context"] == "Global" for k, v in b["bindings"].items()}
+
+    def test_the_panel_brings_its_alt_shortcuts(self):
+        self.run_setup("--panel")
+        self.assertEqual(self.bindings()["alt+1"], "command:rabbit-todo")
+        self.assertEqual(self.bindings()["alt+r"], "command:rabbit")
+
+    def test_a_key_already_taken_is_kept(self):
+        with open(self.keys, "w") as fh:
+            json.dump({"bindings": [{"context": "Global", "bindings": {"alt+2": "app:toggleTodos"}}]}, fh)
+        out = self.run_setup("--panel")
+        self.assertEqual(self.bindings()["alt+2"], "app:toggleTodos")
+        self.assertEqual(self.bindings()["alt+3"], "command:rabbit-notes")
+        self.assertIn("alt+2 is already bound to app:toggleTodos: kept", out)
+
+    def test_no_shortcuts_without_the_panel(self):
+        self.run_setup()
+        self.assertFalse(os.path.exists(self.keys))

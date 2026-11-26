@@ -14,6 +14,9 @@ EVENTS = (
 )
 STATUSLINE_REFRESH_S = 60
 PANEL_LINK = "~/.claude/white-rabbit-panel"
+KEYBINDINGS = "~/.claude/keybindings.json"
+SHORTCUTS = {"alt+r": "command:rabbit", "alt+1": "command:rabbit-todo", "alt+2": "command:rabbit-mr",
+             "alt+3": "command:rabbit-notes", "alt+4": "command:rabbit-git", "alt+5": "command:rabbit-help"}
 PLUGIN_DIRS = "CLAUDE_CODE_PLUGIN_DIRS"
 
 
@@ -40,6 +43,36 @@ def _panel(data, changes):
         env[PLUGIN_DIRS] = os.pathsep.join(dirs + [PANEL_LINK])
         changes.append("+ env %s: %s" % (PLUGIN_DIRS, PANEL_LINK))
     return relink
+
+
+def _shortcuts(path, changes, notes):
+    """Raccourcis alt du panneau, ajoutés au contexte Global de keybindings.json sans toucher
+    une touche déjà prise ; renvoie le fichier à écrire, ou None s'il n'y a rien à changer."""
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        data = {"$schema": "https://www.schemastore.org/claude-code-keybindings.json",
+                "$docs": "https://code.claude.com/docs/en/keybindings", "bindings": []}
+    except (OSError, ValueError) as exc:
+        notes.append("cannot read %s: %s (shortcuts not added)" % (path, exc))
+        return None
+    blocks = data.setdefault("bindings", [])
+    taken = {key: action for block in blocks if block.get("context") == "Global"
+             for key, action in (block.get("bindings") or {}).items()}
+    missing = {key: action for key, action in SHORTCUTS.items() if key not in taken}
+    for key, action in SHORTCUTS.items():
+        if key in taken and taken[key] != action:
+            notes.append("%s is already bound to %s: kept" % (key, taken[key]))
+    if not missing:
+        return None
+    target = next((block for block in blocks if block.get("context") == "Global"), None)
+    if target is None:
+        target = {"context": "Global", "bindings": {}}
+        blocks.append(target)
+    target.setdefault("bindings", {}).update(missing)
+    changes.append("+ shortcuts in %s: %s" % (KEYBINDINGS, ", ".join(sorted(missing))))
+    return data
 
 
 def _link(target):
@@ -102,7 +135,14 @@ def run(args, settings_path=None, exe=None):
             refused = True
             print("a statusline is already set (%s): kept. Run with --force to replace it, or make it "
                   "print the output of `%s statusline` (same stdin)." % (current, exe))
-    relink = _panel(data, changes) if "--panel" in args or panel_linked() else None
+    panel = "--panel" in args or panel_linked()
+    relink = _panel(data, changes) if panel else None
+    notes = []
+    keys_path = os.path.expanduser(KEYBINDINGS) if settings_path is None else os.path.join(
+        os.path.dirname(path), "keybindings.json")
+    keys = _shortcuts(keys_path, changes, notes) if panel else None
+    for line in notes:
+        print(line)
     for line in changes or ["nothing to change"]:
         print(line)
     if dry:
@@ -110,6 +150,11 @@ def run(args, settings_path=None, exe=None):
     elif changes:
         if relink:
             _link(relink)
+        if keys is not None:
+            os.makedirs(os.path.dirname(keys_path), exist_ok=True)
+            with open(keys_path, "w") as fh:
+                json.dump(keys, fh, indent=2, ensure_ascii=False)
+                fh.write("\n")
         if os.path.exists(path):
             shutil.copyfile(path, path + ".bak")
         os.makedirs(os.path.dirname(path), exist_ok=True)

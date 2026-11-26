@@ -223,12 +223,15 @@ merged. Turn it on with:
     white-rabbit setup --panel
 
 It links `~/.claude/white-rabbit-panel` to the installed panel and adds that link to
-`env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, next to the folders already there;
+`env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, next to the folders already there,
+and binds `alt+r` (show or hide the pane) and `alt+1` … `alt+5` (To-do, MR, Notes, Git and Help
+tabs) in `~/.claude/keybindings.json`, leaving any key already bound alone;
 `white-rabbit update` keeps the link on the new version. A session loads it when it starts; a
 running one picks it up once resumed.
 
     /rabbit                              show or hide the pane
-    /rabbit help                         about, shortcuts, commands and update (also the ? Help tab)
+    /rabbit help                         about, update, shortcuts and commands (also the ? Help tab)
+    /rabbit-todo … /rabbit-help          open a tab, or hide the pane when that tab shows (alt+1 … alt+5)
     /rabbit display [statusline|band|off]  where the MR, Notes and Next lines show
     /rabbit place [band|hint|mode|turn]  where the ◧ rabbit button sits (mode: right of the prompt footer)
     /rabbit color [default|matrix|night|forest|ember]  the pane's palette

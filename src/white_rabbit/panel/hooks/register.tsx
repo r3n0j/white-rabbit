@@ -17,24 +17,20 @@ const HELP_ABOUT = [
   'white-rabbit follows what this session leaves behind: merge requests, notes, to-do and git state.',
   'The statusline, the band above the prompt and this pane read the same registry.',
 ]
+const SHORTCUTS: Record<Tab, string> = { todo: 'alt+1', mr: 'alt+2', notes: 'alt+3', git: 'alt+4', help: 'alt+5' }
 const HELP_SHORTCUTS: [string, string][] = [
-  ['click a tab', 'open it'],
-  ['click a section header', 'fold or unfold it'],
-  ['click MR: Notes: Next:', 'open the pane on that tab (band, or statusline through kitty)'],
-  ['ctrl+x tab', 'give the keyboard to the band or the pane'],
-  ['tab', 'walk the buttons'],
-  ['enter', 'press the focused button'],
-  ['↑ ↓', 'scroll the pane'],
-  ['esc', 'back to the prompt'],
-  ['ctrl+x ctrl+a', 'fold or unfold the band'],
+  ['alt+r', 'show or hide this pane'],
+  ...TABS.map(({ id, label }): [string, string] => [SHORTCUTS[id], `${label} tab (again to hide the pane)`]),
+  ['click MR: Notes: Next:', 'open the matching tab, from the band or the statusline'],
 ]
 const HELP_COMMANDS: [string, string][] = [
   ['/rabbit', 'show or hide this pane'],
   ['/rabbit help', 'this help, in the conversation'],
+  ['/rabbit-todo … /rabbit-help', 'open a tab (what alt+1 … alt+5 run)'],
   ['/rabbit display [statusline|band|off]', 'where MR, Notes and Next show'],
   ['/rabbit place [band|hint|mode|turn]', 'where the ◧ rabbit button sits'],
   ['/rabbit color [default|matrix|night|forest|ember]', 'the palette of this pane'],
-  ['white-rabbit setup --panel', 'hooks, statusline and this pane in settings.json'],
+  ['white-rabbit setup --panel', 'hooks, statusline, this pane and its alt shortcuts'],
   ['white-rabbit config set display.summary <where>', 'same as /rabbit display'],
   ['white-rabbit view', 'what this pane shows, as JSON'],
 ]
@@ -44,8 +40,7 @@ function helpUpdate(current: View | null): [string, string][] {
   return [
     ['installed', current?.update ? `${installed}, ${current.update.replace(/^v/, '')} available` : `${installed}, up to date`],
     ['white-rabbit update', 'install the latest release, then run setup again'],
-    ['⬆ button', 'shows in this head and in the statusline when a release is newer'],
-    ['check', 'once a day, in the background, at the start of a session'],
+    ['check', 'once a day at the start of a session; a newer release shows ⬆ here and in the statusline'],
   ]
 }
 
@@ -54,9 +49,9 @@ function helpText(current: View | null) {
     [title, ...entries.map(([key, what]) => `  ${key.padEnd(48)} ${what}`)].join('\n')
   return [
     ['ABOUT', ...HELP_ABOUT.map(line => `  ${line}`)].join('\n'),
+    rows('UPDATE', helpUpdate(current)),
     rows('SHORTCUTS', HELP_SHORTCUTS),
     rows('COMMANDS', HELP_COMMANDS),
-    rows('UPDATE', helpUpdate(current)),
   ].join('\n\n')
 }
 const REFRESH_MS = 20_000
@@ -216,17 +211,25 @@ function askPull($: EngineInterface, repo: Git) {
     + 'mets-la à jour avec git pull --rebase.', 'Asked the session to pull')
 }
 
-async function upgrade($: EngineInterface, tag: string) {
-  $.ui.toast(`Installing white-rabbit ${tag}…`)
+async function upgrade($: EngineInterface, tag: string | null) {
+  $.ui.toast(tag ? `Installing white-rabbit ${tag}…` : 'Looking for a newer white-rabbit…')
   try {
     const { exitCode, stdout } = await $.process.run(['white-rabbit', 'update'], { timeoutMs: 300_000 })
-    $.ui.toast(exitCode === 0
-      ? `white-rabbit ${tag} installed: open a new session to load it`
-      : `white-rabbit update failed: ${stdout.trim().split('\n').pop() ?? ''}`)
+    const said = stdout.trim().split('\n').pop() ?? ''
+    $.ui.toast(exitCode !== 0 ? `white-rabbit update failed: ${said}` : said || 'white-rabbit is up to date')
   } catch {
     $.ui.toast('white-rabbit update could not be run')
   }
   await refresh($)
+}
+
+async function shortcut($: EngineInterface, wanted: Tab) {
+  const isOpen = (await $.ui.panes()).some(pane => pane.id === PANE)
+  if (isOpen && await read($, tab) === wanted) {
+    await $.ui.close({ id: PANE })
+    return
+  }
+  await openTab($, wanted)
 }
 
 async function compact($: EngineInterface) {
@@ -525,6 +528,9 @@ export const register: Register = on => {
     await restore($)
     await detectNeb($)
     await $.command.register({ name: 'rabbit', description: 'Show or hide the white-rabbit pane; /rabbit place cycles its button, /rabbit color its palette, /rabbit display where MR, notes and next show; /rabbit help' })
+    for (const { id, label } of TABS) {
+      await $.command.register({ name: `rabbit-${id}`, description: `Open the white-rabbit pane on its ${label} tab, or hide it` })
+    }
     $.clock.every(REFRESH_MS, () => void refresh($))
     await refresh($)
     handled = await requestedAt($, (await read($, view))?.open_request).catch(() => 0)
@@ -537,6 +543,13 @@ export const register: Register = on => {
     await refresh($)
     return done
   })
+
+  for (const { id, label } of TABS) {
+    on('command.run', { command: `rabbit-${id}` }, async $ => {
+      await shortcut($, id)
+      return { text: `White-rabbit ${label} tab.` }
+    })
+  }
 
   on('command.run', { command: 'rabbit' }, async ($, e) => {
     const [verb, ...rest] = e.args.trim().split(/\s+/)
@@ -963,9 +976,16 @@ export const register: Register = on => {
           {heading('ABOUT')}
           {HELP_ABOUT.map(line => <Text key={line} color={colors.text} wrap="wrap"> {line}</Text>)}
         </Box>
+        <Box key="help-update" flexDirection="column">
+          {heading('UPDATE')}
+          {keyed(helpUpdate(current))}
+          <Box key="help-upgrade-zone" paddingLeft={1}>
+            <Button key="help-upgrade" plain label={current?.update ? `⬆ install ${current.update}` : '⬆ white-rabbit update'}
+              onPress={() => upgrade($, current?.update ?? null)} {...hovered(colors)} />
+          </Box>
+        </Box>
         <Box key="help-shortcuts" flexDirection="column">{heading('SHORTCUTS')}{keyed(HELP_SHORTCUTS)}</Box>
         <Box key="help-commands" flexDirection="column">{heading('COMMANDS')}{keyed(HELP_COMMANDS)}</Box>
-        <Box key="help-update" flexDirection="column">{heading('UPDATE')}{keyed(helpUpdate(current))}</Box>
       </Box>
     )
     const tabBody = { todo: todoTab, mr: mrTab, notes: notesTab, git: gitTab, help: helpTab }[shown]

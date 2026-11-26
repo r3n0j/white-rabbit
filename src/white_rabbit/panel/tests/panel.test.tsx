@@ -410,10 +410,11 @@ test('the help tab and /rabbit help explain, list the shortcuts, commands and up
   on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify({ ...VIEW, version: '0.7.0', update: 'v0.8.0' }), stderr: '' } }))
   await $.command.run({ command: 'rabbit', args: '' })
   const said = ((await $.command.run({ command: 'rabbit', args: 'help' })) as { text: string }).text
-  expect(said).toMatch(/^ABOUT\n/)
-  expect(said).toMatch(/\nSHORTCUTS\n[\s\S]*ctrl\+x tab/)
-  expect(said).toMatch(/\nCOMMANDS\n[\s\S]*\/rabbit display \[statusline\|band\|off\]/)
+  expect(said.split('\n').filter(line => /^[A-Z]+$/.test(line))).toEqual(['ABOUT', 'UPDATE', 'SHORTCUTS', 'COMMANDS'])
   expect(said).toMatch(/\nUPDATE\n[\s\S]*0\.7\.0, 0\.8\.0 available[\s\S]*white-rabbit update/)
+  expect(said).toMatch(/\nSHORTCUTS\n[\s\S]*alt\+1 +To-do tab/)
+  expect(said).not.toMatch(/ctrl\+x|click a tab/)
+  expect(said).toMatch(/\nCOMMANDS\n[\s\S]*\/rabbit display \[statusline\|band\|off\]/)
 
   const ui = await $.ui.mount({
     plugin: 'white-rabbit-panel', surface: 'terminal', component: 'Pane', requestId: 'white-rabbit', props: PANE_PROPS as never,
@@ -421,7 +422,21 @@ test('the help tab and /rabbit help explain, list the shortcuts, commands and up
   expect((await ui.find({ key: 'tab-help' }))?.props.label).toBe(' ? Help ')
   await ui.press({ key: 'tab-help' })
   expect(await ui.find({ type: 'Text', text: ' SHORTCUTS ' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: 'ctrl+x ctrl+a' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'alt+5' })).toBeDefined()
+  expect((await ui.find({ key: 'help-upgrade' }))?.props.label).toBe('⬆ install v0.8.0')
   expect(await ui.find({ type: 'Text', text: /0\.8\.0 available/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('each tab has a command that opens it, and hides the pane when it is already shown', async ($, on) => {
+  const open = panes(on)
+  on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify(VIEW), stderr: '' } }))
+  await $.command.run({ command: 'rabbit-mr', args: '' })
+  expect([...open]).toEqual(['white-rabbit'])
+  expect(kept.get('tab')).toBe('mr')
+  await $.command.run({ command: 'rabbit-git', args: '' })
+  expect([...open]).toEqual(['white-rabbit'])
+  expect(kept.get('tab')).toBe('git')
+  await $.command.run({ command: 'rabbit-git', args: '' })
+  expect([...open]).toEqual([])
 })
