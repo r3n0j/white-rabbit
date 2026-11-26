@@ -22,7 +22,6 @@ const SHORTCUTS: Record<Tab, string> = { todo: 'alt+1', mr: 'alt+2', notes: 'alt
 const HELP_SHORTCUTS: [string, string][] = [
   ['alt+r', 'show or hide this pane'],
   ...TABS.map(({ id, label }): [string, string] => [SHORTCUTS[id], `${label} tab (again to hide the pane)`]),
-  ['click MR: Notes: Next:', 'open the matching tab, from the band or the statusline'],
 ]
 const HELP_COMMANDS: [string, string][] = [
   ['/rabbit', 'show or hide this pane'],
@@ -31,6 +30,7 @@ const HELP_COMMANDS: [string, string][] = [
   ['/rabbit display [statusline|band|off]', 'where MR, Notes and Next show'],
   ['/rabbit place [band|hint|mode|turn]', 'where the ◧ rabbit button sits'],
   ['/rabbit color [default|matrix|night|forest|ember]', 'the palette of this pane'],
+  ['white-rabbit update', 'install the latest release, then run setup again'],
   ['white-rabbit setup --panel', 'hooks, statusline, this pane and its alt shortcuts'],
   ['white-rabbit config set display.summary <where>', 'same as /rabbit display'],
   ['white-rabbit view', 'what this pane shows, as JSON'],
@@ -40,8 +40,6 @@ function helpUpdate(current: View | null): [string, string][] {
   const installed = current?.version ?? '?'
   return [
     ['installed', current?.update ? `${installed}, ${current.update.replace(/^v/, '')} available` : `${installed}, up to date`],
-    ['white-rabbit update', 'install the latest release, then run setup again'],
-    ['check', 'once a day at the start of a session; a newer release shows ⬆ here and in the statusline'],
   ]
 }
 

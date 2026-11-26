@@ -411,7 +411,9 @@ test('the help tab and /rabbit help explain, list the shortcuts, commands and up
   await $.command.run({ command: 'rabbit', args: '' })
   const said = ((await $.command.run({ command: 'rabbit', args: 'help' })) as { text: string }).text
   expect(said.split('\n').filter(line => /^[A-Z]+$/.test(line))).toEqual(['ABOUT', 'UPDATE', 'SHORTCUTS', 'COMMANDS'])
-  expect(said).toMatch(/\nUPDATE\n[\s\S]*0\.7\.0, 0\.8\.0 available[\s\S]*white-rabbit update/)
+  expect(said).toMatch(/\nUPDATE\n  installed +0\.7\.0, 0\.8\.0 available\n\n/)
+  expect(said).toMatch(/\nCOMMANDS\n[\s\S]*white-rabbit update +install the latest release/)
+  expect(said).not.toMatch(/click MR|once a day/)
   expect(said).toMatch(/\nSHORTCUTS\n[\s\S]*alt\+1 +To-do tab/)
   expect(said).not.toMatch(/ctrl\+x|click a tab/)
   expect(said).toMatch(/\nCOMMANDS\n[\s\S]*\/rabbit display \[statusline\|band\|off\]/)
