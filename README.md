@@ -29,7 +29,7 @@ to clone it (HTTPS credentials or SSH key).
 Requirements: Python 3.10+ and `pipx`; `glab` installed and logged in, or merge requests are
 captured but their state (opened, merged) is never refreshed.
 
-    pipx install git+https://github.com/r3n0j/white-rabbit@v0.7.0
+    pipx install git+https://github.com/r3n0j/white-rabbit@v0.7.1
     white-rabbit setup --dry-run   # shows what it will add to ~/.claude/settings.json
     white-rabbit setup
     white-rabbit setup --panel     # optional: the Claude Code panel (see Panel)

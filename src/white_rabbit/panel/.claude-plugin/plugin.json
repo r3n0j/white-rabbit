@@ -1,6 +1,6 @@
 {
   "name": "white-rabbit-panel",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A band above the prompt and a pane listing the session's merge requests, notes and to-do, from white-rabbit.",
   "types": "./types/index.d.ts"
 }
