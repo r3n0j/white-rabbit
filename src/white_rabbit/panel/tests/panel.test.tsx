@@ -440,3 +440,25 @@ test('each tab has a command that opens it, and hides the pane when it is alread
   await $.command.run({ command: 'rabbit-git', args: '' })
   expect([...open]).toEqual([])
 })
+
+test('the toggle and tab commands say nothing and their prompt row is hidden', async ($, on) => {
+  panes(on)
+  on('process.run', async () => ({ value: { exitCode: 0, stdout: JSON.stringify(VIEW), stderr: '' } }))
+  on('ui.render', async ($, e) => {
+    const { Box } = $.ui.resolve(e)
+    return <Box key="engine" />
+  })
+  expect(await $.command.run({ command: 'rabbit-mr', args: '' })).toEqual({})
+  expect(await $.command.run({ command: 'rabbit', args: '' })).toEqual({})
+  const row = (text: string, isExpanded = false) => $.ui.mount({
+    plugin: 'white-rabbit-panel', surface: 'terminal', component: 'UserMessage',
+    props: { text, origin: { kind: 'prompt' }, isExpanded } as never,
+  })
+  const hidden = await row('/rabbit-todo')
+  expect(await hidden.find({ key: 'silent-command' })).toBeDefined()
+  await hidden.unmount()
+  for (const shown of [await row('/rabbit help'), await row('/rabbit-todo', true), await row('hello')]) {
+    expect(await shown.find({ key: 'engine' })).toBeDefined()
+    await shown.unmount()
+  }
+})

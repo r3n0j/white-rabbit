@@ -17,6 +17,7 @@ const HELP_ABOUT = [
   'white-rabbit follows what this session leaves behind: merge requests, notes, to-do and git state.',
   'The statusline, the band above the prompt and this pane read the same registry.',
 ]
+const SILENT_COMMAND = /^\s*\/rabbit(-(todo|mr|notes|git|help))?\s*$/
 const SHORTCUTS: Record<Tab, string> = { todo: 'alt+1', mr: 'alt+2', notes: 'alt+3', git: 'alt+4', help: 'alt+5' }
 const HELP_SHORTCUTS: [string, string][] = [
   ['alt+r', 'show or hide this pane'],
@@ -544,12 +545,20 @@ export const register: Register = on => {
     return done
   })
 
-  for (const { id, label } of TABS) {
+  for (const { id } of TABS) {
     on('command.run', { command: `rabbit-${id}` }, async $ => {
       await shortcut($, id)
-      return { text: `White-rabbit ${label} tab.` }
+      return {}
     })
   }
+
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    if (e.props.isExpanded || !SILENT_COMMAND.test(e.props.text)) {
+      return next(e)
+    }
+    const { Box } = $.ui.resolve(e)
+    return <Box key="silent-command" display="none" />
+  })
 
   on('command.run', { command: 'rabbit' }, async ($, e) => {
     const [verb, ...rest] = e.args.trim().split(/\s+/)
@@ -566,7 +575,7 @@ export const register: Register = on => {
       return { text: await paint($, rest.join(' ')) }
     }
     await toggle($)
-    return { text: 'White-rabbit pane toggled.' }
+    return {}
   })
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
