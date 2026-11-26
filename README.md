@@ -212,9 +212,21 @@ update`, and the panel with a `⬆ X.Y.Z` button that runs it.
 
 Installed from a clone rather than pipx, `update` only says so: pull that clone instead.
 
+### From 0.6.0 or older
+
+`white-rabbit update` came with 0.7.0: an older install takes the latest release by hand, once.
+
+    pipx install --force git+https://github.com/r3n0j/white-rabbit@v0.7.1
+    white-rabbit setup --panel     # optional: the Claude Code panel and its alt shortcuts
+
+`--force` is needed: pipx does not replace a version installed from a tag otherwise. The hooks
+and the statusline have not changed since 0.5.0, so `white-rabbit setup` needs no new run; only
+`--panel` adds something. Open a new Claude Code session afterwards; from then on,
+`white-rabbit update` is enough.
+
 ## Panel (Claude Code mod)
 
-`src/white_rabbit/panel/` is a Claude Code mod, installed with the package that draws the session from `white-rabbit view`: a band above the
+`src/white_rabbit/panel/` is a Claude Code mod, installed with the package, that draws the session from `white-rabbit view`: a band above the
 prompt, a pane in neb's style: the context window (with a compact button), the git state of the session's folder,
 then To-do, MR, Notes and Git tabs (the open one is kept) whose sections fold on a click on
 their header (MR: open, merged this turn, merged earlier and closed, the last two folded at first), and a toast when a merge request is
